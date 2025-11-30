@@ -296,8 +296,12 @@ pub struct VideoMetadata {
     pub duration: Option<f64>,
     /// コンテンツタイプ
     pub content_type: ContentType,
-    /// 元のビットレート（bps）
-    pub source_bitrate: Option<u64>,
+    /// 元の映像ビットレート（bps）
+    pub source_video_bitrate: Option<u64>,
+    /// 元の音声ビットレート（bps）
+    pub source_audio_bitrate: Option<u64>,
+    /// 元の全体ビットレート（bps）
+    pub source_overall_bitrate: Option<u64>,
 }
 
 /// 設定から予測圧縮率を計算（2024-2025年実測値準拠の改良版）
@@ -333,13 +337,147 @@ pub fn estimate_compression_ratio_advanced(
         }
     };
 
-    // === 1. CRF係数（コーデック別の減衰率を使用）===
-    // 各コーデックでCRFの効き方が異なる
+    // === ソースビットレートがある場合、より正確な予測を行う ===
+    if let Some(source_video_bitrate) = metadata.source_video_bitrate {
+        return estimate_from_source_bitrate(
+            settings,
+            metadata,
+            source_video_bitrate,
+            source_resolution,
+            target_resolution,
+            source_fps,
+        );
+    }
+
+    // === ソースビットレートがない場合、従来の圧縮率ベースの予測 ===
+    estimate_from_compression_ratio(
+        settings,
+        metadata,
+        source_resolution,
+        target_resolution,
+        source_fps,
+    )
+}
+
+/// ソースビットレートを基にした予測（高精度）
+fn estimate_from_source_bitrate(
+    settings: &TranscodeSettings,
+    metadata: &VideoMetadata,
+    source_video_bitrate: u64,
+    source_resolution: (u32, u32),
+    target_resolution: (u32, u32),
+    source_fps: f64,
+) -> f64 {
+    // === 1. ターゲットビットレートを推定 ===
+    // CRF→ビットレートの変換は動画の特性に依存するが、
+    // 元のビットレートを基準にすることで精度が向上する
+
+    // CRF係数（CRFが高いほどビットレートが低下）
+    // 基準CRF=23として、CRF±6で約2倍の変化
     let crf_divisor = match settings.video_codec {
-        VideoCodec::H264 => 6.0, // H.264: CRF±6で約2倍
-        VideoCodec::H265 => 5.5, // H.265: CRF±5.5で約2倍
-        VideoCodec::Vp9 => 5.8,  // VP9: CRF±5.8で約2倍
-        VideoCodec::Av1 => 5.0,  // AV1: CRF±5で約2倍（最も敏感）
+        VideoCodec::H264 => 6.0,
+        VideoCodec::H265 => 5.5,
+        VideoCodec::Vp9 => 5.8,
+        VideoCodec::Av1 => 5.0,
+    };
+    let crf_factor = 2.0_f64.powf((23.0 - settings.crf as f64) / crf_divisor);
+
+    // === 2. 解像度変換による影響 ===
+    let source_pixels = source_resolution.0 as f64 * source_resolution.1 as f64;
+    let target_pixels = target_resolution.0 as f64 * target_resolution.1 as f64;
+    let resolution_factor = if source_pixels > 0.0 {
+        (target_pixels / source_pixels).powf(0.85) // 解像度変更の影響は0.85乗
+    } else {
+        1.0
+    };
+
+    // === 3. コーデック効率 ===
+    // 元のコーデックが分かれば比較できるが、ここでは出力コーデックの絶対効率を使用
+    // 1080p 30fps CRF23 medium での典型的なビットレート（Mbps）
+    let typical_bitrate_mbps = match settings.video_codec {
+        VideoCodec::H264 => 8.0,  // H.264: 約8Mbps
+        VideoCodec::H265 => 4.0,  // H.265: 約4Mbps
+        VideoCodec::Vp9 => 3.6,   // VP9: 約3.6Mbps
+        VideoCodec::Av1 => 2.3,   // AV1: 約2.3Mbps
+    };
+
+    // 元のビットレートと典型値の比率から、動画の複雑さを推定
+    let source_mbps = source_video_bitrate as f64 / 1_000_000.0;
+    // 解像度・フレームレートを正規化した実効ビットレート
+    let normalized_source_mbps = source_mbps * (1920.0 * 1080.0 / source_pixels) * (30.0 / source_fps);
+    
+    // 複雑さ係数（元が高ビットレートなら複雑な動画）
+    // 典型的な値（10Mbps程度）との比較
+    let complexity_factor = (normalized_source_mbps / 10.0).sqrt().clamp(0.5, 2.0);
+
+    // === 4. ターゲットビットレートを計算 ===
+    let base_target_mbps = typical_bitrate_mbps * crf_factor * resolution_factor * complexity_factor;
+
+    // === 5. プリセット係数 ===
+    let preset_factor = match settings.preset {
+        VideoPreset::Ultrafast => 1.55,
+        VideoPreset::Fast => 1.18,
+        VideoPreset::Medium => 1.00,
+        VideoPreset::Slow => 0.89,
+        VideoPreset::Veryslow => 0.81,
+    };
+
+    // === 6. HWアクセラレーション係数 ===
+    let hwaccel_factor = match (&settings.hwaccel, &settings.video_codec) {
+        (HwAccelType::Software, _) => 1.00,
+        (HwAccelType::Nvenc, VideoCodec::Av1) => 1.10,
+        (HwAccelType::Nvenc, _) => 1.30,
+        (HwAccelType::Qsv, _) => 1.18,
+        (HwAccelType::Amf, _) => 1.20,
+        (HwAccelType::Auto, VideoCodec::Av1) => 1.05,
+        (HwAccelType::Auto, _) => 1.15,
+    };
+
+    // === 7. 動き量補正 ===
+    let motion_factor = metadata.content_type.motion_factor();
+
+    // 最終的なターゲットビットレート
+    let target_video_mbps = base_target_mbps * preset_factor * hwaccel_factor * motion_factor;
+    let target_video_bitrate = target_video_mbps * 1_000_000.0;
+
+    // === 8. 映像部分の圧縮率 ===
+    let video_ratio = target_video_bitrate / source_video_bitrate as f64;
+
+    // === 9. 音声部分の処理 ===
+    let source_audio_bitrate = metadata.source_audio_bitrate.unwrap_or(192_000); // デフォルト192kbps
+    let target_audio_bitrate = match settings.audio_codec {
+        AudioCodec::Copy => source_audio_bitrate as f64,
+        AudioCodec::Aac | AudioCodec::Mp3 => settings.audio_bitrate as f64 * 1000.0,
+        AudioCodec::Flac => source_audio_bitrate as f64 * 2.5, // FLACは約2.5倍
+    };
+
+    // 全体に対する音声の割合
+    let total_source_bitrate = metadata.source_overall_bitrate
+        .unwrap_or(source_video_bitrate + source_audio_bitrate);
+    let audio_portion = source_audio_bitrate as f64 / total_source_bitrate as f64;
+    let video_portion = 1.0 - audio_portion;
+
+    // === 10. 最終的な圧縮率 ===
+    let audio_ratio = target_audio_bitrate / source_audio_bitrate as f64;
+    let total_ratio = video_portion * video_ratio + audio_portion * audio_ratio;
+
+    total_ratio.clamp(0.03, 5.0)
+}
+
+/// 従来の圧縮率ベースの予測（ソースビットレートがない場合）
+fn estimate_from_compression_ratio(
+    settings: &TranscodeSettings,
+    metadata: &VideoMetadata,
+    source_resolution: (u32, u32),
+    target_resolution: (u32, u32),
+    source_fps: f64,
+) -> f64 {
+    // === 1. CRF係数（コーデック別の減衰率を使用）===
+    let crf_divisor = match settings.video_codec {
+        VideoCodec::H264 => 6.0,
+        VideoCodec::H265 => 5.5,
+        VideoCodec::Vp9 => 5.8,
+        VideoCodec::Av1 => 5.0,
     };
     let crf_factor = 2.0_f64.powf((23.0 - settings.crf as f64) / crf_divisor);
 

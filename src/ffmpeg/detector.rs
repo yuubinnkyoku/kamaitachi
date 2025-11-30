@@ -213,6 +213,215 @@ impl FfmpegDetector {
     }
 }
 
+/// ffprobeで取得した動画メタデータ
+#[derive(Debug, Clone, Default)]
+pub struct ProbeResult {
+    /// 動画の長さ（秒）
+    pub duration: Option<f64>,
+    /// 映像ビットレート（bps）
+    pub video_bitrate: Option<u64>,
+    /// 音声ビットレート（bps）
+    pub audio_bitrate: Option<u64>,
+    /// 全体ビットレート（bps）
+    pub overall_bitrate: Option<u64>,
+    /// 解像度（幅, 高さ）
+    pub resolution: Option<(u32, u32)>,
+    /// フレームレート
+    pub fps: Option<f64>,
+    /// 映像コーデック
+    pub video_codec: Option<String>,
+    /// 音声コーデック
+    pub audio_codec: Option<String>,
+}
+
+impl FfmpegInfo {
+    /// ffprobeで動画のメタデータを取得
+    pub fn probe_video(&self, path: &std::path::Path) -> Result<ProbeResult> {
+        let ffprobe_path = self.ffprobe_path.as_ref()
+            .ok_or_else(|| anyhow!("ffprobe not found"))?;
+
+        // JSON形式で詳細情報を取得
+        let output = Command::new(ffprobe_path)
+            .args([
+                "-v", "quiet",
+                "-print_format", "json",
+                "-show_format",
+                "-show_streams",
+            ])
+            .arg(path)
+            .output()
+            .context("Failed to execute ffprobe")?;
+
+        if !output.status.success() {
+            return Err(anyhow!("ffprobe failed: {}", String::from_utf8_lossy(&output.stderr)));
+        }
+
+        let json_str = String::from_utf8_lossy(&output.stdout);
+        Self::parse_probe_json(&json_str)
+    }
+
+    /// ffprobeのJSON出力をパース
+    fn parse_probe_json(json_str: &str) -> Result<ProbeResult> {
+        use std::collections::HashMap;
+
+        let mut result = ProbeResult::default();
+
+        // 簡易JSONパース（serde_json依存を避けるため）
+        // format セクションから duration と bit_rate を取得
+        if let Some(format_start) = json_str.find("\"format\"") {
+            let format_section = &json_str[format_start..];
+
+            // duration
+            if let Some(duration) = Self::extract_json_number(format_section, "duration") {
+                result.duration = Some(duration);
+            }
+
+            // bit_rate (全体)
+            if let Some(bitrate) = Self::extract_json_string_number(format_section, "bit_rate") {
+                result.overall_bitrate = Some(bitrate);
+            }
+        }
+
+        // streams セクションから映像・音声情報を取得
+        let mut in_streams = false;
+        let mut brace_count = 0;
+        let mut current_stream = String::new();
+
+        for line in json_str.lines() {
+            let trimmed = line.trim();
+
+            if trimmed.contains("\"streams\"") {
+                in_streams = true;
+                continue;
+            }
+
+            if in_streams {
+                current_stream.push_str(line);
+                brace_count += line.chars().filter(|&c| c == '{').count() as i32;
+                brace_count -= line.chars().filter(|&c| c == '}').count() as i32;
+
+                // ストリーム1つ分が完了
+                if brace_count == 0 && !current_stream.is_empty() && current_stream.contains("codec_type") {
+                    if current_stream.contains("\"codec_type\": \"video\"") ||
+                       current_stream.contains("\"codec_type\":\"video\"") {
+                        // 映像ストリーム
+                        if let Some(w) = Self::extract_json_int(&current_stream, "width") {
+                            if let Some(h) = Self::extract_json_int(&current_stream, "height") {
+                                result.resolution = Some((w as u32, h as u32));
+                            }
+                        }
+
+                        if let Some(bitrate) = Self::extract_json_string_number(&current_stream, "bit_rate") {
+                            result.video_bitrate = Some(bitrate);
+                        }
+
+                        // フレームレート (r_frame_rate: "30/1" or "30000/1001")
+                        if let Some(fps_str) = Self::extract_json_string(&current_stream, "r_frame_rate") {
+                            if let Some(fps) = Self::parse_frame_rate(&fps_str) {
+                                result.fps = Some(fps);
+                            }
+                        }
+
+                        if let Some(codec) = Self::extract_json_string(&current_stream, "codec_name") {
+                            result.video_codec = Some(codec);
+                        }
+                    } else if current_stream.contains("\"codec_type\": \"audio\"") ||
+                              current_stream.contains("\"codec_type\":\"audio\"") {
+                        // 音声ストリーム
+                        if result.audio_bitrate.is_none() {
+                            if let Some(bitrate) = Self::extract_json_string_number(&current_stream, "bit_rate") {
+                                result.audio_bitrate = Some(bitrate);
+                            }
+                        }
+
+                        if result.audio_codec.is_none() {
+                            if let Some(codec) = Self::extract_json_string(&current_stream, "codec_name") {
+                                result.audio_codec = Some(codec);
+                            }
+                        }
+                    }
+
+                    current_stream.clear();
+                }
+            }
+        }
+
+        // 映像ビットレートが取れなかった場合、全体から音声を引いて推定
+        if result.video_bitrate.is_none() {
+            if let (Some(overall), Some(audio)) = (result.overall_bitrate, result.audio_bitrate) {
+                if overall > audio {
+                    result.video_bitrate = Some(overall - audio);
+                }
+            } else if let Some(overall) = result.overall_bitrate {
+                // 音声ビットレートが不明な場合、全体の90%を映像と仮定
+                result.video_bitrate = Some((overall as f64 * 0.90) as u64);
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// JSON文字列から数値を抽出 ("key": 123.45)
+    fn extract_json_number(json: &str, key: &str) -> Option<f64> {
+        let pattern = format!("\"{}\":", key);
+        if let Some(pos) = json.find(&pattern) {
+            let start = pos + pattern.len();
+            let rest = json[start..].trim_start();
+            let end = rest.find(|c: char| !c.is_ascii_digit() && c != '.' && c != '-').unwrap_or(rest.len());
+            rest[..end].parse().ok()
+        } else {
+            None
+        }
+    }
+
+    /// JSON文字列から整数を抽出 ("key": 123)
+    fn extract_json_int(json: &str, key: &str) -> Option<i64> {
+        let pattern = format!("\"{}\":", key);
+        if let Some(pos) = json.find(&pattern) {
+            let start = pos + pattern.len();
+            let rest = json[start..].trim_start();
+            let end = rest.find(|c: char| !c.is_ascii_digit() && c != '-').unwrap_or(rest.len());
+            rest[..end].parse().ok()
+        } else {
+            None
+        }
+    }
+
+    /// JSON文字列から文字列値を抽出 ("key": "value")
+    fn extract_json_string(json: &str, key: &str) -> Option<String> {
+        let pattern = format!("\"{}\":", key);
+        if let Some(pos) = json.find(&pattern) {
+            let start = pos + pattern.len();
+            let rest = json[start..].trim_start();
+            if rest.starts_with('"') {
+                let content = &rest[1..];
+                if let Some(end) = content.find('"') {
+                    return Some(content[..end].to_string());
+                }
+            }
+        }
+        None
+    }
+
+    /// JSON文字列から数値文字列を抽出して数値に変換 ("key": "12345")
+    fn extract_json_string_number(json: &str, key: &str) -> Option<u64> {
+        Self::extract_json_string(json, key)?.parse().ok()
+    }
+
+    /// フレームレート文字列をパース ("30/1" -> 30.0)
+    fn parse_frame_rate(fps_str: &str) -> Option<f64> {
+        let parts: Vec<&str> = fps_str.split('/').collect();
+        if parts.len() == 2 {
+            let num: f64 = parts[0].parse().ok()?;
+            let den: f64 = parts[1].parse().ok()?;
+            if den > 0.0 {
+                return Some(num / den);
+            }
+        }
+        fps_str.parse().ok()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,6 +1,7 @@
 //! アプリケーション状態管理
 
 use crate::config::Settings;
+use crate::ffmpeg::{FfmpegDetector, FfmpegInfo, ProbeResult};
 use crate::transcoder::{
     estimate_compression_ratio_advanced, ContentType, TranscodeJob, TranscodeSettings,
     VideoMetadata,
@@ -21,6 +22,8 @@ pub struct AppState {
     pub settings: Entity<Settings>,
     /// FFmpegパス
     pub ffmpeg_path: Entity<Option<PathBuf>>,
+    /// FFmpeg情報（ffprobe用）
+    pub ffmpeg_info: Entity<Option<FfmpegInfo>>,
 }
 
 impl AppState {
@@ -28,22 +31,31 @@ impl AppState {
         // 設定をロード
         let settings = Settings::load().unwrap_or_default();
 
+        // FFmpegを検出
+        let ffmpeg_info = FfmpegDetector::detect().ok();
+
         Self {
             files: cx.new(|_| Vec::new()),
             transcode_settings: cx.new(|_| TranscodeSettings::default()),
             current_job: cx.new(|_| None),
             settings: cx.new(|_| settings),
             ffmpeg_path: cx.new(|_| None),
+            ffmpeg_info: cx.new(|_| ffmpeg_info),
         }
     }
 
     /// ファイルをキューに追加
     pub fn add_files(&self, paths: Vec<PathBuf>, cx: &mut App) {
         let settings = self.transcode_settings.read(cx).clone();
+        let ffmpeg_info = self.ffmpeg_info.read(cx).clone();
         self.files.update(cx, |files, _| {
             for path in paths {
                 if Self::is_supported_format(&path) {
-                    let mut entry = FileEntry::new(path);
+                    let mut entry = FileEntry::new(path.clone());
+                    // ffprobeでメタデータを取得
+                    if let Some(ref info) = ffmpeg_info {
+                        entry.probe_metadata(info);
+                    }
                     entry.update_estimated_size(&settings);
                     files.push(entry);
                 }
@@ -127,6 +139,44 @@ impl FileEntry {
             progress: 0.0,
             estimated_size: None,
             metadata: VideoMetadata::default(),
+        }
+    }
+
+    /// ffprobeでメタデータを取得
+    pub fn probe_metadata(&mut self, ffmpeg_info: &FfmpegInfo) {
+        if let Ok(probe) = ffmpeg_info.probe_video(&self.path) {
+            // 解像度
+            if let Some((w, h)) = probe.resolution {
+                self.metadata.resolution = Some((w, h));
+            }
+            // フレームレート
+            if let Some(fps) = probe.fps {
+                self.metadata.fps = Some(fps);
+            }
+            // 動画の長さ
+            if let Some(duration) = probe.duration {
+                self.metadata.duration = Some(duration);
+            }
+            // ビットレート
+            if let Some(video_br) = probe.video_bitrate {
+                self.metadata.source_video_bitrate = Some(video_br);
+            }
+            if let Some(audio_br) = probe.audio_bitrate {
+                self.metadata.source_audio_bitrate = Some(audio_br);
+            }
+            if let Some(overall_br) = probe.overall_bitrate {
+                self.metadata.source_overall_bitrate = Some(overall_br);
+            }
+
+            log::debug!(
+                "Probed {}: resolution={:?}, fps={:?}, duration={:?}, video_br={:?}, audio_br={:?}",
+                self.name,
+                self.metadata.resolution,
+                self.metadata.fps,
+                self.metadata.duration,
+                self.metadata.source_video_bitrate,
+                self.metadata.source_audio_bitrate
+            );
         }
     }
 
