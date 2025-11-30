@@ -13,6 +13,7 @@ mod ui;
 
 use anyhow::Result;
 use gpui::*;
+use gpui_component::Root;
 use log::info;
 
 fn main() -> Result<()> {
@@ -23,6 +24,9 @@ fn main() -> Result<()> {
 
     // GPUIアプリケーション起動
     Application::new().run(|cx: &mut App| {
+        // gpui-componentの初期化（テーマなどのグローバル設定に必要）
+        gpui_component::init(cx);
+
         // アプリケーション状態を初期化
         let app_state = app::AppState::new(cx);
 
@@ -43,7 +47,12 @@ fn main() -> Result<()> {
                 })),
                 ..Default::default()
             },
-            |_, cx| cx.new(|cx| ui::MainWindow::new(app_state, cx)),
+            |window, cx| {
+                // メインウィンドウビューを作成
+                let main_view = cx.new(|cx| ui::MainWindow::new(app_state, cx));
+                // gpui-componentではRootでラップする必要がある
+                cx.new(|cx| Root::new(main_view, window, cx))
+            },
         )
         .expect("Failed to open window");
     });
