@@ -213,22 +213,18 @@ impl MainWindow {
                     .spawn();
 
                 match result {
-                    Ok(mut child) => {
-                        // プロセスの完了を待機
-                        match child.wait().await {
-                            Ok(status) => {
-                                let final_status = if status.success() {
+                    Ok(child) => {
+                        // プロセスの完了を待機し、出力を取得
+                        match child.wait_with_output().await {
+                            Ok(output) => {
+                                let final_status = if output.status.success() {
                                     info!("Transcode completed: {:?}", output_path);
                                     FileStatus::Completed
                                 } else {
-                                    let stderr = child.stderr.take();
-                                    let error_msg = if let Some(mut stderr) = stderr {
-                                        use tokio::io::AsyncReadExt;
-                                        let mut buf = Vec::new();
-                                        stderr.read_to_end(&mut buf).await.ok();
-                                        String::from_utf8_lossy(&buf).to_string()
+                                    let error_msg = if !output.stderr.is_empty() {
+                                        String::from_utf8_lossy(&output.stderr).to_string()
                                     } else {
-                                        format!("Exit code: {:?}", status.code())
+                                        format!("Exit code: {:?}", output.status.code())
                                     };
                                     error!("Transcode failed: {}", error_msg);
                                     FileStatus::Error(error_msg)
