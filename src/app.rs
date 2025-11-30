@@ -1,7 +1,10 @@
 //! アプリケーション状態管理
 
 use crate::config::Settings;
-use crate::transcoder::{TranscodeJob, TranscodeSettings, estimate_compression_ratio};
+use crate::transcoder::{
+    estimate_compression_ratio_advanced, ContentType, TranscodeJob, TranscodeSettings,
+    VideoMetadata,
+};
 use gpui::*;
 use std::path::PathBuf;
 
@@ -102,10 +105,8 @@ pub struct FileEntry {
     pub progress: f32,
     /// 予測出力サイズ（バイト）
     pub estimated_size: Option<u64>,
-    /// 動画の解像度（幅, 高さ）
-    pub resolution: Option<(u32, u32)>,
-    /// 動画の長さ（秒）
-    pub duration: Option<f64>,
+    /// 動画メタデータ
+    pub metadata: VideoMetadata,
 }
 
 impl FileEntry {
@@ -116,9 +117,7 @@ impl FileEntry {
             .unwrap_or("unknown")
             .to_string();
 
-        let size = std::fs::metadata(&path)
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
 
         Self {
             path,
@@ -127,24 +126,44 @@ impl FileEntry {
             status: FileStatus::Pending,
             progress: 0.0,
             estimated_size: None,
-            resolution: None,
-            duration: None,
+            metadata: VideoMetadata::default(),
         }
     }
 
-    /// 予測サイズを計算・更新
+    /// コンテンツタイプを設定
+    pub fn set_content_type(&mut self, content_type: ContentType) {
+        self.metadata.content_type = content_type;
+    }
+
+    /// フレームレートを設定
+    pub fn set_fps(&mut self, fps: f64) {
+        self.metadata.fps = Some(fps);
+    }
+
+    /// 解像度を設定
+    pub fn set_resolution(&mut self, width: u32, height: u32) {
+        self.metadata.resolution = Some((width, height));
+    }
+
+    /// 動画の長さを設定
+    pub fn set_duration(&mut self, duration: f64) {
+        self.metadata.duration = Some(duration);
+    }
+
+    /// 予測サイズを計算・更新（高精度版）
     pub fn update_estimated_size(&mut self, settings: &TranscodeSettings) {
-        // 解像度が不明な場合は予測不可
-        let source_res = self.resolution.unwrap_or((1920, 1080)); // デフォルト1080p
-        
-        let target_res = match settings.resolution {
-            crate::transcoder::VideoResolution::Original => source_res,
-            res => res.dimensions(),
-        };
-        
-        // 圧縮率を計算
-        let ratio = estimate_compression_ratio(settings.crf, source_res, target_res);
-        
+        // メタデータが不完全な場合はデフォルト値を使用
+        let mut metadata = self.metadata.clone();
+        if metadata.resolution.is_none() {
+            metadata.resolution = Some((1920, 1080)); // デフォルト1080p
+        }
+        if metadata.fps.is_none() {
+            metadata.fps = Some(30.0); // デフォルト30fps
+        }
+
+        // 高精度予測モデルを使用
+        let ratio = estimate_compression_ratio_advanced(settings, &metadata);
+
         // 予測サイズを計算
         self.estimated_size = Some((self.size as f64 * ratio) as u64);
     }

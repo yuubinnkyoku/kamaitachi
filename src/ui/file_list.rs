@@ -47,11 +47,8 @@ impl Render for FileList {
 
         // 合計サイズを計算
         let total_size: u64 = files.iter().map(|f| f.size).sum();
-        let total_estimated: u64 = files
-            .iter()
-            .filter_map(|f| f.estimated_size)
-            .sum();
-        
+        let total_estimated: u64 = files.iter().filter_map(|f| f.estimated_size).sum();
+
         // 合計サイズのフォーマット
         let size_summary = if total_size > 0 && total_estimated > 0 {
             let compression_ratio = (total_estimated as f64 / total_size as f64) * 100.0;
@@ -218,12 +215,7 @@ impl FileList {
                     .flex()
                     .flex_col()
                     .gap(px(1.0))
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(rgb(0x6c7086))
-                            .child(file_size),
-                    )
+                    .child(div().text_sm().text_color(rgb(0x6c7086)).child(file_size))
                     .when_some(estimated_size, |this, est| {
                         this.child(
                             div()

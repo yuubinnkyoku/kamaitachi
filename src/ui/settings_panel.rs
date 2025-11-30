@@ -85,6 +85,8 @@ impl SettingsPanel {
                                     .update(cx, |settings, _| {
                                         settings.container = value_clone;
                                     });
+                                // 予測サイズを更新
+                                Self::update_estimated_sizes(&app_state_clone, cx);
                                 cx.notify();
                             }))
                             .child(name.to_string())
@@ -152,6 +154,8 @@ impl SettingsPanel {
                                     .update(cx, |settings, _| {
                                         settings.video_codec = value_clone;
                                     });
+                                // 予測サイズを更新
+                                Self::update_estimated_sizes(&app_state_clone, cx);
                                 cx.notify();
                             }))
                             .child(name.to_string())
@@ -285,6 +289,8 @@ impl SettingsPanel {
                                     .update(cx, |settings, _| {
                                         settings.preset = value_clone;
                                     });
+                                // 予測サイズを更新
+                                Self::update_estimated_sizes(&app_state_clone, cx);
                                 cx.notify();
                             }))
                             .child(name.to_string())
@@ -353,6 +359,8 @@ impl SettingsPanel {
                                     .update(cx, |settings, _| {
                                         settings.hwaccel = value_clone;
                                     });
+                                // 予測サイズを更新
+                                Self::update_estimated_sizes(&app_state_clone, cx);
                                 cx.notify();
                             }))
                             .child(name.to_string())
@@ -420,6 +428,8 @@ impl SettingsPanel {
                                     .update(cx, |settings, _| {
                                         settings.audio_codec = value_clone;
                                     });
+                                // 予測サイズを更新
+                                Self::update_estimated_sizes(&app_state_clone, cx);
                                 cx.notify();
                             }))
                             .child(name.to_string())
@@ -428,11 +438,7 @@ impl SettingsPanel {
     }
 
     /// CRF選択ボタンをレンダリング
-    fn render_crf_select(
-        &self,
-        current: u8,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
+    fn render_crf_select(&self, current: u8, cx: &mut Context<Self>) -> impl IntoElement {
         let app_state = self.app_state.clone();
         // CRFの選択肢（数値が低いほど高品質）
         let options = [
@@ -559,6 +565,8 @@ impl SettingsPanel {
                                     .update(cx, |settings, _| {
                                         settings.audio_bitrate = value_clone;
                                     });
+                                // 予測サイズを更新
+                                Self::update_estimated_sizes(&app_state_clone, cx);
                                 cx.notify();
                             }))
                             .child(name.to_string())

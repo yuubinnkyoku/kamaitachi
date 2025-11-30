@@ -10,4 +10,7 @@ pub use job::TranscodeJob;
 pub use preset::{
     AudioCodec, ContainerFormat, TranscodeSettings, VideoCodec, VideoPreset, VideoResolution,
 };
-pub use progress::{TranscodeProgress, format_size, format_duration, estimate_compression_ratio};
+pub use progress::{
+    estimate_compression_ratio, estimate_compression_ratio_advanced, format_duration, format_size,
+    ContentType, TranscodeProgress, VideoMetadata,
+};
