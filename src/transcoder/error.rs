@@ -54,7 +54,62 @@ impl FfmpegError {
             return Self::encoder_not_supported(&encoder, stderr);
         }
 
-        // HWアクセラレーションエラー
+        // 特定のHWエンコーダーエラー（より具体的なエラーメッセージを先にチェック）
+        // Intel QSV関連エラー
+        if stderr_lower.contains("no qsv-supporting device")
+            || stderr_lower.contains("device creation failed") && stderr_lower.contains("qsv")
+            || stderr_lower.contains("mfx")
+                && (stderr_lower.contains("error") || stderr_lower.contains("failed"))
+            || stderr_lower.contains("h264_qsv")
+                && (stderr_lower.contains("error")
+                    || stderr_lower.contains("failed")
+                    || stderr_lower.contains("not found"))
+            || stderr_lower.contains("hevc_qsv")
+                && (stderr_lower.contains("error")
+                    || stderr_lower.contains("failed")
+                    || stderr_lower.contains("not found"))
+            || stderr_lower.contains("av1_qsv")
+                && (stderr_lower.contains("error")
+                    || stderr_lower.contains("failed")
+                    || stderr_lower.contains("not found"))
+            || stderr_lower.contains("libmfx") && stderr_lower.contains("not found")
+            || stderr_lower.contains("qsv") && stderr_lower.contains("init")
+        {
+            return Self::hwaccel_not_available("Intel QSV", stderr);
+        }
+
+        // NVIDIA NVENC関連エラー
+        if stderr_lower.contains("no nvenc capable devices found")
+            || stderr_lower.contains("cannot load nvcuda.dll")
+            || stderr_lower.contains("cannot load nvencodeapi")
+            || stderr_lower.contains("h264_nvenc")
+                && (stderr_lower.contains("error")
+                    || stderr_lower.contains("failed")
+                    || stderr_lower.contains("not found"))
+            || stderr_lower.contains("hevc_nvenc")
+                && (stderr_lower.contains("error")
+                    || stderr_lower.contains("failed")
+                    || stderr_lower.contains("not found"))
+        {
+            return Self::hwaccel_not_available("NVIDIA NVENC", stderr);
+        }
+
+        // AMD AMF関連エラー
+        if stderr_lower.contains("amf failed")
+            || stderr_lower.contains("no amf capable device")
+            || stderr_lower.contains("h264_amf")
+                && (stderr_lower.contains("error")
+                    || stderr_lower.contains("failed")
+                    || stderr_lower.contains("not found"))
+            || stderr_lower.contains("hevc_amf")
+                && (stderr_lower.contains("error")
+                    || stderr_lower.contains("failed")
+                    || stderr_lower.contains("not found"))
+        {
+            return Self::hwaccel_not_available("AMD AMF", stderr);
+        }
+
+        // HWアクセラレーションエラー（一般的なパターン - 上記で判定されなかった場合）
         if stderr_lower.contains("nvenc")
             || stderr_lower.contains("qsv")
             || stderr_lower.contains("amf")
@@ -71,24 +126,6 @@ impl FfmpegError {
                 let hwaccel = Self::extract_hwaccel_name(stderr);
                 return Self::hwaccel_not_available(&hwaccel, stderr);
             }
-        }
-
-        // 特定のHWエンコーダーエラー
-        if stderr_lower.contains("no nvenc capable devices found")
-            || stderr_lower.contains("cannot load nvcuda.dll")
-            || stderr_lower.contains("cannot load nvencodeapi")
-        {
-            return Self::hwaccel_not_available("NVIDIA NVENC", stderr);
-        }
-
-        if stderr_lower.contains("no qsv-supporting device")
-            || stderr_lower.contains("device creation failed") && stderr_lower.contains("qsv")
-        {
-            return Self::hwaccel_not_available("Intel QSV", stderr);
-        }
-
-        if stderr_lower.contains("amf failed") || stderr_lower.contains("no amf capable device") {
-            return Self::hwaccel_not_available("AMD AMF", stderr);
         }
 
         // デコーダーがサポートされていない
@@ -354,14 +391,40 @@ impl FfmpegError {
     }
 
     /// HWアクセラレーション名を抽出
+    /// 注意: エラーメッセージに複数のHWアクセラレーション名が含まれる可能性があるため、
+    /// より具体的なエンコーダー名（h264_qsv等）を優先してチェックする
     fn extract_hwaccel_name(stderr: &str) -> String {
         let lower = stderr.to_lowercase();
-        if lower.contains("nvenc") || lower.contains("cuda") || lower.contains("nvcuda") {
-            "NVIDIA NVENC".to_string()
-        } else if lower.contains("qsv") {
+
+        // 具体的なエンコーダー名を優先的にチェック（より正確な判定のため）
+        // QSVエンコーダー名をチェック
+        if lower.contains("h264_qsv")
+            || lower.contains("hevc_qsv")
+            || lower.contains("av1_qsv")
+            || lower.contains("vp9_qsv")
+        {
+            return "Intel QSV".to_string();
+        }
+        // AMFエンコーダー名をチェック
+        if lower.contains("h264_amf") || lower.contains("hevc_amf") || lower.contains("av1_amf") {
+            return "AMD AMF".to_string();
+        }
+        // NVENCエンコーダー名をチェック
+        if lower.contains("h264_nvenc")
+            || lower.contains("hevc_nvenc")
+            || lower.contains("av1_nvenc")
+        {
+            return "NVIDIA NVENC".to_string();
+        }
+
+        // 一般的なキーワードでチェック（エンコーダー名が見つからない場合のフォールバック）
+        // QSV特有のエラーキーワード
+        if lower.contains("qsv") || lower.contains("quick sync") || lower.contains("mfx") {
             "Intel QSV".to_string()
-        } else if lower.contains("amf") {
+        } else if lower.contains("amf") || lower.contains("advanced media framework") {
             "AMD AMF".to_string()
+        } else if lower.contains("nvenc") || lower.contains("cuda") || lower.contains("nvcuda") {
+            "NVIDIA NVENC".to_string()
         } else if lower.contains("vaapi") {
             "VAAPI".to_string()
         } else {
