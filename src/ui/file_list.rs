@@ -6,6 +6,7 @@ use gpui_component::button::{Button, ButtonVariant, ButtonVariants};
 use gpui_component::Disableable;
 
 use crate::app::{AppState, FileEntry, FileStatus};
+use crate::transcoder::format_size;
 
 /// ファイルリスト
 pub struct FileList {
@@ -44,6 +45,28 @@ impl Render for FileList {
         let is_empty = files.is_empty();
         let selected = self.selected_index;
 
+        // 合計サイズを計算
+        let total_size: u64 = files.iter().map(|f| f.size).sum();
+        let total_estimated: u64 = files
+            .iter()
+            .filter_map(|f| f.estimated_size)
+            .sum();
+        
+        // 合計サイズのフォーマット
+        let size_summary = if total_size > 0 && total_estimated > 0 {
+            let compression_ratio = (total_estimated as f64 / total_size as f64) * 100.0;
+            format!(
+                "{} → {} ({:.0}%)",
+                format_size(total_size),
+                format_size(total_estimated),
+                compression_ratio
+            )
+        } else if total_size > 0 {
+            format_size(total_size)
+        } else {
+            String::new()
+        };
+
         div()
             .size_full()
             .flex()
@@ -62,9 +85,23 @@ impl Render for FileList {
                     .border_color(rgb(0x313244))
                     .child(
                         div()
-                            .text_sm()
-                            .font_weight(FontWeight::MEDIUM)
-                            .child(format!("ファイル ({} 件)", files_len)),
+                            .flex()
+                            .items_center()
+                            .gap(px(16.0))
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .child(format!("ファイル ({} 件)", files_len)),
+                            )
+                            .when(!size_summary.is_empty(), |this| {
+                                this.child(
+                                    div()
+                                        .text_xs()
+                                        .text_color(rgb(0xa6e3a1))
+                                        .child(size_summary),
+                                )
+                            }),
                     )
                     .child(
                         Button::new("remove-selected")
@@ -123,6 +160,7 @@ impl FileList {
         let file_name = file.name.clone();
         let file_path = file.path.to_string_lossy().to_string();
         let file_size = file.formatted_size();
+        let estimated_size = file.estimated_size.map(format_size);
         let status_label = file.status.label().to_string();
         let is_processing = file.status == FileStatus::Processing;
         let progress = file.progress;
@@ -173,13 +211,27 @@ impl FileList {
                             .child(file_path),
                     ),
             )
-            // サイズ
+            // サイズ（元サイズ → 予測サイズ）
             .child(
                 div()
-                    .w(px(80.0))
-                    .text_sm()
-                    .text_color(rgb(0x6c7086))
-                    .child(file_size),
+                    .w(px(140.0))
+                    .flex()
+                    .flex_col()
+                    .gap(px(1.0))
+                    .child(
+                        div()
+                            .text_sm()
+                            .text_color(rgb(0x6c7086))
+                            .child(file_size),
+                    )
+                    .when_some(estimated_size, |this, est| {
+                        this.child(
+                            div()
+                                .text_xs()
+                                .text_color(rgb(0xa6e3a1))
+                                .child(format!("→ {}", est)),
+                        )
+                    }),
             )
             // ステータス
             .child(

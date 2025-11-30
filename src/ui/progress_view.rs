@@ -49,22 +49,20 @@ impl Render for ProgressView {
                                     .items_center()
                                     .justify_between()
                                     .child(
-                                        div()
-                                            .text_sm()
-                                            .child(
-                                                job.input_path
-                                                    .file_name()
-                                                    .and_then(|n| n.to_str())
-                                                    .unwrap_or("Processing...")
-                                                    .to_string()
-                                            )
+                                        div().text_sm().child(
+                                            job.input_path
+                                                .file_name()
+                                                .and_then(|n| n.to_str())
+                                                .unwrap_or("Processing...")
+                                                .to_string(),
+                                        ),
                                     )
                                     .child(
                                         div()
                                             .text_sm()
                                             .text_color(rgb(0x6c7086))
-                                            .child("0% | 0:00 経過 | -- 残り")
-                                    )
+                                            .child("0% | 0:00 経過 | -- 残り"),
+                                    ),
                             )
                             .child(
                                 div()
@@ -77,9 +75,9 @@ impl Render for ProgressView {
                                             .h_full()
                                             .rounded(px(2.0))
                                             .bg(rgb(0x89b4fa))
-                                            .w(relative(0.0))
-                                    )
-                            )
+                                            .w(relative(0.0)),
+                                    ),
+                            ),
                     )
                     // キャンセルボタン
                     .child(
@@ -92,7 +90,7 @@ impl Render for ProgressView {
                             .text_sm()
                             .cursor_pointer()
                             .hover(|s| s.bg(rgb(0xeba0ac)))
-                            .child("キャンセル")
+                            .child("キャンセル"),
                     )
             }
             None => {
@@ -109,13 +107,13 @@ impl Render for ProgressView {
                         div()
                             .text_xs()
                             .text_color(rgb(0x6c7086))
-                            .child(ffmpeg_status)
+                            .child(ffmpeg_status),
                     )
                     .child(
                         div()
                             .text_xs()
                             .text_color(rgb(0x6c7086))
-                            .child(format!("kamaitachi v{}", env!("CARGO_PKG_VERSION")))
+                            .child(format!("kamaitachi v{}", env!("CARGO_PKG_VERSION"))),
                     )
             }
         }

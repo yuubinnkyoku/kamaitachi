@@ -23,6 +23,10 @@ pub struct TranscodeProgress {
     pub current_time: Duration,
     /// 総時間
     pub total_time: Option<Duration>,
+    /// 現在の出力サイズ（バイト）
+    pub current_size: u64,
+    /// 予測最終サイズ（バイト）
+    pub estimated_size: Option<u64>,
 }
 
 impl Default for TranscodeProgress {
@@ -36,6 +40,8 @@ impl Default for TranscodeProgress {
             remaining: None,
             current_time: Duration::ZERO,
             total_time: None,
+            current_size: 0,
+            estimated_size: None,
         }
     }
 }
@@ -55,6 +61,10 @@ pub struct ProgressFilter {
     total_duration_us: AtomicU64,
     /// 現在時刻（マイクロ秒）
     current_time_us: AtomicU64,
+    /// 現在の出力サイズ（バイト）
+    current_size: AtomicU64,
+    /// 入力ファイルサイズ（バイト）
+    input_size: AtomicU64,
 }
 
 impl ProgressFilter {
@@ -69,7 +79,19 @@ impl ProgressFilter {
                 total_duration.map(|d| d.as_micros() as u64).unwrap_or(0)
             ),
             current_time_us: AtomicU64::new(0),
+            current_size: AtomicU64::new(0),
+            input_size: AtomicU64::new(0),
         }
+    }
+
+    /// 入力ファイルサイズを設定
+    pub fn set_input_size(&self, size: u64) {
+        self.input_size.store(size, Ordering::SeqCst);
+    }
+
+    /// 現在の出力サイズを更新
+    pub fn set_current_size(&self, size: u64) {
+        self.current_size.store(size, Ordering::SeqCst);
     }
 
     /// キャンセルフラグを取得
@@ -105,6 +127,7 @@ impl ProgressFilter {
         let elapsed = self.start_time.elapsed();
         let current_time_us = self.current_time_us.load(Ordering::SeqCst);
         let total_duration_us = self.total_duration_us.load(Ordering::SeqCst);
+        let current_size = self.current_size.load(Ordering::SeqCst);
 
         // FPS計算
         let fps = if elapsed.as_secs_f32() > 0.0 {
@@ -135,6 +158,14 @@ impl ProgressFilter {
             None
         };
 
+        // 予測最終サイズを計算
+        let estimated_size = if progress > 0.05 && current_size > 0 {
+            // 進捗が5%以上で現在サイズがある場合のみ予測
+            Some((current_size as f64 / progress as f64) as u64)
+        } else {
+            None
+        };
+
         TranscodeProgress {
             frames_processed,
             total_frames,
@@ -148,6 +179,8 @@ impl ProgressFilter {
             } else {
                 None
             },
+            current_size,
+            estimated_size,
         }
     }
 
@@ -174,4 +207,45 @@ pub fn format_duration(duration: Duration) -> String {
     } else {
         format!("{:02}:{:02}", minutes, seconds)
     }
+}
+
+/// ファイルサイズをフォーマット
+pub fn format_size(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = KB * 1024;
+    const GB: u64 = MB * 1024;
+
+    if bytes >= GB {
+        format!("{:.2} GB", bytes as f64 / GB as f64)
+    } else if bytes >= MB {
+        format!("{:.2} MB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.2} KB", bytes as f64 / KB as f64)
+    } else {
+        format!("{} B", bytes)
+    }
+}
+
+/// CRFと設定から予測圧縮率を計算
+/// この値は大まかな目安であり、実際のサイズは動画の内容によって大きく変わる
+pub fn estimate_compression_ratio(
+    crf: u8,
+    source_resolution: (u32, u32),
+    target_resolution: (u32, u32),
+) -> f64 {
+    // CRFベースの圧縮率（CRF 23をベースライン1.0として）
+    // CRFが上がるとファイルサイズは小さくなる
+    let crf_factor = 1.0 / (1.0 + (crf as f64 - 23.0) * 0.15);
+
+    // 解像度による係数
+    let source_pixels = source_resolution.0 as f64 * source_resolution.1 as f64;
+    let target_pixels = target_resolution.0 as f64 * target_resolution.1 as f64;
+    let resolution_factor = if source_pixels > 0.0 && target_pixels > 0.0 {
+        target_pixels / source_pixels
+    } else {
+        1.0
+    };
+
+    // 最終的な圧縮率（元のサイズに対する比率）
+    (crf_factor * resolution_factor).max(0.05).min(2.0)
 }

@@ -20,6 +20,16 @@ impl SettingsPanel {
         Self { app_state }
     }
 
+    /// すべてのファイルの予測サイズを更新
+    fn update_estimated_sizes(app_state: &AppState, cx: &mut Context<Self>) {
+        let settings = app_state.transcode_settings.read(cx).clone();
+        app_state.files.update(cx, |files, _| {
+            for file in files.iter_mut() {
+                file.update_estimated_size(&settings);
+            }
+        });
+    }
+
     /// コンテナ形式ボタンをレンダリング
     fn render_container_select(
         &self,
@@ -205,6 +215,8 @@ impl SettingsPanel {
                                     .update(cx, |settings, _| {
                                         settings.resolution = value_clone;
                                     });
+                                // 予測サイズを更新
+                                Self::update_estimated_sizes(&app_state_clone, cx);
                                 cx.notify();
                             }))
                             .child(name.to_string())
@@ -415,6 +427,78 @@ impl SettingsPanel {
             )
     }
 
+    /// CRF選択ボタンをレンダリング
+    fn render_crf_select(
+        &self,
+        current: u8,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let app_state = self.app_state.clone();
+        // CRFの選択肢（数値が低いほど高品質）
+        let options = [
+            (18u8, "最高"),
+            (20u8, "高"),
+            (23u8, "標準"),
+            (26u8, "中"),
+            (28u8, "低"),
+            (32u8, "最低"),
+        ];
+
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(rgb(0x6c7086))
+                    .child(format!("品質 (CRF: {})", current)),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(4.0))
+                    .children(options.iter().map(|(value, name)| {
+                        let is_selected = *value == current;
+                        let value_clone = *value;
+                        let app_state_clone = app_state.clone();
+
+                        div()
+                            .id(SharedString::from(format!("crf-{}", value)))
+                            .px(px(8.0))
+                            .py(px(4.0))
+                            .rounded(px(4.0))
+                            .text_xs()
+                            .cursor_pointer()
+                            .bg(if is_selected {
+                                rgb(0x89b4fa)
+                            } else {
+                                rgb(0x313244)
+                            })
+                            .text_color(if is_selected {
+                                rgb(0x1e1e2e)
+                            } else {
+                                rgb(0xcdd6f4)
+                            })
+                            .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
+                            .on_click(cx.listener(move |_this, _, _, cx| {
+                                app_state_clone
+                                    .transcode_settings
+                                    .update(cx, |settings, _| {
+                                        settings.crf = value_clone;
+                                    });
+                                // 予測サイズを更新
+                                Self::update_estimated_sizes(&app_state_clone, cx);
+                                cx.notify();
+                            }))
+                            .child(name.to_string())
+                    })),
+            )
+    }
+
     /// オーディオビットレートボタンをレンダリング
     fn render_audio_bitrate_select(
         &self,
@@ -526,42 +610,7 @@ impl Render for SettingsPanel {
                     // 解像度
                     .child(self.render_resolution_select(settings.resolution, cx))
                     // 品質 (CRF)
-                    .child(
-                        div()
-                            .w_full()
-                            .flex()
-                            .flex_col()
-                            .gap(px(4.0))
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(rgb(0x6c7086))
-                                    .child(format!("品質 (CRF: {})", settings.crf)),
-                            )
-                            .child(
-                                div()
-                                    .w_full()
-                                    .flex()
-                                    .items_center()
-                                    .gap(px(8.0))
-                                    .child(div().text_xs().child("高品質"))
-                                    .child(
-                                        div()
-                                            .flex_1()
-                                            .h(px(4.0))
-                                            .rounded(px(2.0))
-                                            .bg(rgb(0x313244))
-                                            .child(
-                                                div()
-                                                    .h_full()
-                                                    .rounded(px(2.0))
-                                                    .bg(rgb(0x89b4fa))
-                                                    .w(relative(settings.crf as f32 / 51.0)),
-                                            ),
-                                    )
-                                    .child(div().text_xs().child("低品質")),
-                            ),
-                    )
+                    .child(self.render_crf_select(settings.crf, cx))
                     // プリセット
                     .child(self.render_preset_select(settings.preset, cx))
                     // HWアクセラレーション

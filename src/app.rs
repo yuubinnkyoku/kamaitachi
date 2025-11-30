@@ -1,7 +1,7 @@
 //! アプリケーション状態管理
 
 use crate::config::Settings;
-use crate::transcoder::{TranscodeJob, TranscodeSettings};
+use crate::transcoder::{TranscodeJob, TranscodeSettings, estimate_compression_ratio};
 use gpui::*;
 use std::path::PathBuf;
 
@@ -36,10 +36,12 @@ impl AppState {
 
     /// ファイルをキューに追加
     pub fn add_files(&self, paths: Vec<PathBuf>, cx: &mut App) {
+        let settings = self.transcode_settings.read(cx).clone();
         self.files.update(cx, |files, _| {
             for path in paths {
                 if Self::is_supported_format(&path) {
-                    let entry = FileEntry::new(path);
+                    let mut entry = FileEntry::new(path);
+                    entry.update_estimated_size(&settings);
                     files.push(entry);
                 }
             }
@@ -59,6 +61,16 @@ impl AppState {
     pub fn clear_files(&self, cx: &mut App) {
         self.files.update(cx, |files, _| {
             files.clear();
+        });
+    }
+
+    /// すべてのファイルの予測サイズを更新
+    pub fn update_all_estimated_sizes(&self, cx: &mut App) {
+        let settings = self.transcode_settings.read(cx).clone();
+        self.files.update(cx, |files, _| {
+            for file in files.iter_mut() {
+                file.update_estimated_size(&settings);
+            }
         });
     }
 
@@ -88,6 +100,12 @@ pub struct FileEntry {
     pub status: FileStatus,
     /// 進捗（0.0 - 1.0）
     pub progress: f32,
+    /// 予測出力サイズ（バイト）
+    pub estimated_size: Option<u64>,
+    /// 動画の解像度（幅, 高さ）
+    pub resolution: Option<(u32, u32)>,
+    /// 動画の長さ（秒）
+    pub duration: Option<f64>,
 }
 
 impl FileEntry {
@@ -108,7 +126,27 @@ impl FileEntry {
             size,
             status: FileStatus::Pending,
             progress: 0.0,
+            estimated_size: None,
+            resolution: None,
+            duration: None,
         }
+    }
+
+    /// 予測サイズを計算・更新
+    pub fn update_estimated_size(&mut self, settings: &TranscodeSettings) {
+        // 解像度が不明な場合は予測不可
+        let source_res = self.resolution.unwrap_or((1920, 1080)); // デフォルト1080p
+        
+        let target_res = match settings.resolution {
+            crate::transcoder::VideoResolution::Original => source_res,
+            res => res.dimensions(),
+        };
+        
+        // 圧縮率を計算
+        let ratio = estimate_compression_ratio(settings.crf, source_res, target_res);
+        
+        // 予測サイズを計算
+        self.estimated_size = Some((self.size as f64 * ratio) as u64);
     }
 
     /// ファイルサイズを人間が読める形式にフォーマット
