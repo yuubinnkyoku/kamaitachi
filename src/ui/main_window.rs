@@ -233,7 +233,7 @@ impl MainWindow {
                 // 総時間を設定
                 current_progress.set_total_duration_secs(total_duration_secs);
 
-                // FFmpegプロセスを実行（stderrをリアルタイムで読み取る）
+                // FFmpegプロセスを実行（stdoutから進捗を読み取る）
                 let ffmpeg_path_clone = ffmpeg_path.clone();
 
                 let result = smol::unblock(move || {
@@ -243,47 +243,48 @@ impl MainWindow {
                         .stderr(Stdio::piped())
                         .spawn()?;
 
-                    // stderrを読み取って進捗を更新
-                    if let Some(stderr) = child.stderr.take() {
-                        let reader = BufReader::new(stderr);
-                        let mut buffer = String::new();
+                    // stdoutから進捗情報を読み取る（-progress pipe:1形式）
+                    if let Some(stdout) = child.stdout.take() {
+                        let reader = BufReader::new(stdout);
+                        let mut progress_info = FfmpegProgressInfo::default();
 
-                        // 1文字ずつ読み取る（FFmpegは\rで行を更新するため）
-                        use std::io::Read;
-                        let mut stderr_bytes = reader.bytes();
+                        for line_result in reader.lines() {
+                            if let Ok(line) = line_result {
+                                // 行を累積的にパースして、進捗ブロックが完了したら更新
+                                if progress_info.parse_progress_line(&line) {
+                                    // progress=continue または progress=end が来たらブロック完了
+                                    if progress_info.is_valid() {
+                                        // time_secsベースで進捗を更新
+                                        current_progress.update_progress_from_time(progress_info.time_secs);
+                                        let progress = current_progress.get_progress();
 
-                        while let Some(Ok(byte)) = stderr_bytes.next() {
-                            if byte == b'\r' || byte == b'\n' {
-                                // 行が完成したらパース
-                                if let Some(progress_info) = FfmpegProgressInfo::parse_line(&buffer)
-                                {
-                                    // time_secsベースで進捗を更新
-                                    current_progress.update_progress_from_time(progress_info.time_secs);
-                                    let progress = current_progress.get_progress();
-                                    
-                                    current_progress
-                                        .set_elapsed_secs(start_time.elapsed().as_secs_f32());
-                                    current_progress.set_fps(progress_info.fps);
+                                        current_progress
+                                            .set_elapsed_secs(start_time.elapsed().as_secs_f32());
+                                        current_progress.set_fps(progress_info.fps);
 
-                                    // 残り時間を計算
-                                    if progress > 0.01 {
-                                        let elapsed = start_time.elapsed().as_secs_f32();
-                                        let total_estimated = elapsed / progress;
-                                        let remaining = (total_estimated - elapsed).max(0.0);
-                                        current_progress.set_remaining_secs(Some(remaining));
+                                        // 残り時間を計算
+                                        if progress > 0.01 {
+                                            let elapsed = start_time.elapsed().as_secs_f32();
+                                            let total_estimated = elapsed / progress;
+                                            let remaining = (total_estimated - elapsed).max(0.0);
+                                            current_progress.set_remaining_secs(Some(remaining));
+                                        }
+
+                                        log::debug!(
+                                            "Progress: frame={}, time={:.2}s, total={:.2}s, progress={:.1}%",
+                                            progress_info.frame,
+                                            progress_info.time_secs,
+                                            current_progress.get_total_duration_secs(),
+                                            progress * 100.0
+                                        );
                                     }
-
-                                    log::debug!(
-                                        "Progress: frame={}, time={:.2}s, total={:.2}s, progress={:.1}%",
-                                        progress_info.frame,
-                                        progress_info.time_secs,
-                                        current_progress.get_total_duration_secs(),
-                                        progress * 100.0
-                                    );
+                                    // 次のブロック用にリセット（フレームとFPSは保持）
+                                    let fps = progress_info.fps;
+                                    let frame = progress_info.frame;
+                                    progress_info = FfmpegProgressInfo::default();
+                                    progress_info.fps = fps;
+                                    progress_info.frame = frame;
                                 }
-                                buffer.clear();
-                            } else {
-                                buffer.push(byte as char);
                             }
                         }
                     }

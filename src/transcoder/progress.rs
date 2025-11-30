@@ -251,7 +251,8 @@ pub struct FfmpegProgressInfo {
 }
 
 impl FfmpegProgressInfo {
-    /// FFmpegのstderr出力行をパース
+    /// FFmpegのstderr出力行をパース（従来形式）
+    /// frame=  123 fps= 30 q=28.0 size=    1234kB time=00:00:05.12 bitrate=1234.5kbits/s speed=1.23x
     pub fn parse_line(line: &str) -> Option<Self> {
         // frame= で始まる行のみをパース
         if !line.contains("frame=") || !line.contains("time=") {
@@ -300,6 +301,68 @@ impl FfmpegProgressInfo {
         } else {
             None
         }
+    }
+    
+    /// FFmpegの-progress出力から進捗情報を累積的にパース
+    /// -progress pipe:1 形式の出力:
+    /// frame=123
+    /// fps=30.00
+    /// out_time_us=5120000
+    /// progress=continue
+    pub fn parse_progress_line(&mut self, line: &str) -> bool {
+        let line = line.trim();
+        if line.is_empty() {
+            return false;
+        }
+        
+        // key=value形式をパース
+        if let Some((key, value)) = line.split_once('=') {
+            match key {
+                "frame" => {
+                    self.frame = value.trim().parse().unwrap_or(0);
+                }
+                "fps" => {
+                    self.fps = value.trim().parse().unwrap_or(0.0);
+                }
+                "total_size" => {
+                    self.size = value.trim().parse().unwrap_or(0);
+                }
+                "out_time_us" => {
+                    // マイクロ秒を秒に変換
+                    let us: i64 = value.trim().parse().unwrap_or(0);
+                    if us > 0 {
+                        self.time_secs = us as f64 / 1_000_000.0;
+                    }
+                }
+                "out_time" => {
+                    // HH:MM:SS.mmmmmmフォーマット（out_time_usがない場合のフォールバック）
+                    if self.time_secs <= 0.0 {
+                        self.time_secs = Self::parse_time(value.trim());
+                    }
+                }
+                "bitrate" => {
+                    // kbits/s形式
+                    let value = value.trim().replace("kbits/s", "");
+                    self.bitrate = value.trim().parse().unwrap_or(0.0);
+                }
+                "speed" => {
+                    // 1.23x形式
+                    let value = value.trim().replace("x", "");
+                    self.speed = value.trim().parse().unwrap_or(0.0);
+                }
+                "progress" => {
+                    // "continue" または "end" - ブロック終了を示す
+                    return value.trim() == "continue" || value.trim() == "end";
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+    
+    /// 有効なデータがあるかチェック
+    pub fn is_valid(&self) -> bool {
+        self.frame > 0 || self.time_secs > 0.0
     }
 
     /// key= の後の値を抽出（次のスペースで区切られたkey=まで）

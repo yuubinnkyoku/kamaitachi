@@ -93,8 +93,13 @@ impl TranscodeJob {
         // オーディオコーデック設定
         self.add_audio_args(&mut args);
 
-        // 進捗情報をstderrに出力（デフォルトでstatsが出力される）
-        args.push("-stats".to_string());
+        // 進捗情報をstdoutに構造化フォーマットで出力
+        args.push("-progress".to_string());
+        args.push("pipe:1".to_string());
+
+        // 進捗更新間隔を0.5秒に設定
+        args.push("-stats_period".to_string());
+        args.push("0.5".to_string());
 
         // 上書き確認なし
         args.push("-y".to_string());
