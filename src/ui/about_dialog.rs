@@ -1,14 +1,14 @@
 //! ライセンス情報ダイアログ
 
 use gpui::*;
-use gpui_component::button::{Button, ButtonVariant};
+use gpui_component::button::{Button, ButtonVariant, ButtonVariants};
 
 /// Aboutダイアログ
 pub struct AboutDialog;
 
 impl AboutDialog {
     /// ダイアログ内容をレンダリング
-    pub fn render_content<F: Fn(&ClickEvent, &mut WindowContext) + 'static>(
+    pub fn render_content<F: Fn(&ClickEvent, &mut Window, &mut App) + 'static>(
         on_close: F,
     ) -> impl IntoElement {
         div()
@@ -35,21 +35,21 @@ impl AboutDialog {
                         div()
                             .text_lg()
                             .font_weight(FontWeight::BOLD)
-                            .child("About kamaitachi")
+                            .child("About kamaitachi"),
                     )
                     .child(
                         Button::new("close")
                             .label("✕")
-                            .variant(ButtonVariant::Ghost)
-                            .on_click(on_close)
-                    )
+                            .with_variant(ButtonVariant::Ghost)
+                            .on_click(on_close),
+                    ),
             )
             // コンテンツ
             .child(
                 div()
                     .flex_1()
                     .p(px(16.0))
-                    .overflow_y_scroll()
+                    .overflow_hidden()
                     .flex()
                     .flex_col()
                     .gap(px(16.0))
@@ -64,29 +64,24 @@ impl AboutDialog {
                                 div()
                                     .text_2xl()
                                     .font_weight(FontWeight::BOLD)
-                                    .child("kamaitachi - 鎌鼬")
+                                    .child("kamaitachi - 鎌鼬"),
                             )
                             .child(
                                 div()
                                     .text_sm()
                                     .text_color(rgb(0x6c7086))
-                                    .child(format!("Version {}", env!("CARGO_PKG_VERSION")))
-                            )
+                                    .child(format!("Version {}", env!("CARGO_PKG_VERSION"))),
+                            ),
                     )
                     // 説明
                     .child(
                         div()
                             .text_sm()
                             .text_color(rgb(0xa6adc8))
-                            .child("HandBrake代替の高速トランスコーダー")
+                            .child("HandBrake代替の高速トランスコーダー"),
                     )
                     // 区切り線
-                    .child(
-                        div()
-                            .w_full()
-                            .h(px(1.0))
-                            .bg(rgb(0x313244))
-                    )
+                    .child(div().w_full().h(px(1.0)).bg(rgb(0x313244)))
                     // ライセンス
                     .child(
                         div()
@@ -97,7 +92,7 @@ impl AboutDialog {
                                 div()
                                     .text_sm()
                                     .font_weight(FontWeight::MEDIUM)
-                                    .child("ライセンス")
+                                    .child("ライセンス"),
                             )
                             .child(
                                 div()
@@ -106,8 +101,8 @@ impl AboutDialog {
                                     .bg(rgb(0x181825))
                                     .text_xs()
                                     .font_family("monospace")
-                                    .child(LICENSE_TEXT)
-                            )
+                                    .child(LICENSE_TEXT),
+                            ),
                     )
                     // 使用ライブラリ
                     .child(
@@ -119,31 +114,23 @@ impl AboutDialog {
                                 div()
                                     .text_sm()
                                     .font_weight(FontWeight::MEDIUM)
-                                    .child("使用ライブラリ")
+                                    .child("使用ライブラリ"),
                             )
-                            .child(
-                                div()
-                                    .flex()
-                                    .flex_col()
-                                    .gap(px(4.0))
-                                    .children(LIBRARIES.iter().map(|(name, license)| {
-                                        div()
-                                            .flex()
-                                            .items_center()
-                                            .justify_between()
-                                            .child(
-                                                div()
-                                                    .text_sm()
-                                                    .child(name.to_string())
-                                            )
-                                            .child(
-                                                div()
-                                                    .text_xs()
-                                                    .text_color(rgb(0x6c7086))
-                                                    .child(license.to_string())
-                                            )
-                                    }))
-                            )
+                            .child(div().flex().flex_col().gap(px(4.0)).children(
+                                LIBRARIES.iter().map(|(name, license)| {
+                                    div()
+                                        .flex()
+                                        .items_center()
+                                        .justify_between()
+                                        .child(div().text_sm().child(name.to_string()))
+                                        .child(
+                                            div()
+                                                .text_xs()
+                                                .text_color(rgb(0x6c7086))
+                                                .child(license.to_string()),
+                                        )
+                                }),
+                            )),
                     )
                     // リンク
                     .child(
@@ -155,7 +142,7 @@ impl AboutDialog {
                                 div()
                                     .text_sm()
                                     .font_weight(FontWeight::MEDIUM)
-                                    .child("リンク")
+                                    .child("リンク"),
                             )
                             .child(
                                 div()
@@ -163,10 +150,16 @@ impl AboutDialog {
                                     .flex_col()
                                     .gap(px(4.0))
                                     .child(Self::render_link("FFmpeg", "https://ffmpeg.org/"))
-                                    .child(Self::render_link("FFmpegソースコード", "https://ffmpeg.org/download.html"))
-                                    .child(Self::render_link("GitHub", "https://github.com/yuubinnkyoku/kamaitachi"))
-                            )
-                    )
+                                    .child(Self::render_link(
+                                        "FFmpegソースコード",
+                                        "https://ffmpeg.org/download.html",
+                                    ))
+                                    .child(Self::render_link(
+                                        "GitHub",
+                                        "https://github.com/yuubinnkyoku/kamaitachi",
+                                    )),
+                            ),
+                    ),
             )
     }
 
@@ -175,16 +168,12 @@ impl AboutDialog {
             .flex()
             .items_center()
             .justify_between()
-            .child(
-                div()
-                    .text_sm()
-                    .child(name.to_string())
-            )
+            .child(div().text_sm().child(name.to_string()))
             .child(
                 div()
                     .text_xs()
                     .text_color(rgb(0x89b4fa))
-                    .child(url.to_string())
+                    .child(url.to_string()),
             )
     }
 }

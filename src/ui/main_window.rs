@@ -1,8 +1,9 @@
 //! メインウィンドウ
 
 use gpui::*;
-use gpui_component::button::{Button, ButtonVariant};
-use gpui_component::Icon;
+use gpui::prelude::FluentBuilder;
+use gpui_component::button::{Button, ButtonVariant, ButtonVariants};
+use gpui_component::Disableable;
 
 use crate::app::AppState;
 use super::{FileList, SettingsPanel, ProgressView, AboutDialog};
@@ -12,20 +13,20 @@ pub struct MainWindow {
     /// アプリケーション状態
     app_state: AppState,
     /// ファイルリスト
-    file_list: View<FileList>,
+    file_list: Entity<FileList>,
     /// 設定パネル
-    settings_panel: View<SettingsPanel>,
+    settings_panel: Entity<SettingsPanel>,
     /// 進捗ビュー
-    progress_view: View<ProgressView>,
+    progress_view: Entity<ProgressView>,
     /// Aboutダイアログ表示フラグ
     show_about: bool,
 }
 
 impl MainWindow {
-    pub fn new(app_state: AppState, cx: &mut ViewContext<Self>) -> Self {
-        let file_list = cx.new_view(|cx| FileList::new(app_state.clone(), cx));
-        let settings_panel = cx.new_view(|cx| SettingsPanel::new(app_state.clone(), cx));
-        let progress_view = cx.new_view(|cx| ProgressView::new(app_state.clone(), cx));
+    pub fn new(app_state: AppState, cx: &mut Context<Self>) -> Self {
+        let file_list = cx.new(|cx| FileList::new(app_state.clone(), cx));
+        let settings_panel = cx.new(|cx| SettingsPanel::new(app_state.clone(), cx));
+        let progress_view = cx.new(|cx| ProgressView::new(app_state.clone(), cx));
 
         // FFmpegを検出
         Self::detect_ffmpeg(&app_state, cx);
@@ -40,7 +41,7 @@ impl MainWindow {
     }
 
     /// FFmpegを検出
-    fn detect_ffmpeg(app_state: &AppState, cx: &mut ViewContext<Self>) {
+    fn detect_ffmpeg(app_state: &AppState, cx: &mut Context<Self>) {
         use crate::ffmpeg::{FfmpegDetector, FfmpegDownloader};
         use log::{info, warn};
 
@@ -77,10 +78,10 @@ impl MainWindow {
     }
 
     /// ファイル追加ダイアログを開く
-    fn open_file_dialog(&mut self, cx: &mut ViewContext<Self>) {
+    fn open_file_dialog(&mut self, cx: &mut Context<Self>) {
         let app_state = self.app_state.clone();
 
-        cx.spawn(|this, mut cx| async move {
+        cx.spawn(async move |this, cx| {
             let files = rfd::AsyncFileDialog::new()
                 .add_filter("Video files", &["mp4", "mkv", "avi", "mov", "webm", "flv", "wmv", "m4v", "ts"])
                 .set_title("ファイルを選択")
@@ -92,17 +93,17 @@ impl MainWindow {
                 cx.update(|cx| {
                     app_state.add_files(paths, cx);
                 }).ok();
-                this.update(&mut cx, |_, cx| cx.notify()).ok();
+                this.update(cx, |_, cx| cx.notify()).ok();
             }
         })
         .detach();
     }
 
     /// 出力フォルダを選択
-    fn select_output_folder(&mut self, cx: &mut ViewContext<Self>) {
+    fn select_output_folder(&mut self, cx: &mut Context<Self>) {
         let app_state = self.app_state.clone();
 
-        cx.spawn(|this, mut cx| async move {
+        cx.spawn(async move |this, cx| {
             let folder = rfd::AsyncFileDialog::new()
                 .set_title("出力フォルダを選択")
                 .pick_folder()
@@ -115,39 +116,39 @@ impl MainWindow {
                         settings.output_dir = Some(path);
                     });
                 }).ok();
-                this.update(&mut cx, |_, cx| cx.notify()).ok();
+                this.update(cx, |_, cx| cx.notify()).ok();
             }
         })
         .detach();
     }
 
     /// トランスコード開始
-    fn start_transcode(&mut self, cx: &mut ViewContext<Self>) {
+    fn start_transcode(&mut self, _cx: &mut Context<Self>) {
         // TODO: 実装
         log::info!("Start transcode");
     }
 
     /// キューをクリア
-    fn clear_queue(&mut self, cx: &mut ViewContext<Self>) {
-        self.app_state.clear_files(cx);
+    fn clear_queue(&mut self, cx: &mut Context<Self>) {
+        self.app_state.files.update(cx, |files, _| files.clear());
         cx.notify();
     }
 
     /// Aboutダイアログを表示
-    fn show_about(&mut self, cx: &mut ViewContext<Self>) {
+    fn show_about(&mut self, cx: &mut Context<Self>) {
         self.show_about = true;
         cx.notify();
     }
 
     /// Aboutダイアログを閉じる
-    fn hide_about(&mut self, cx: &mut ViewContext<Self>) {
+    fn hide_about(&mut self, cx: &mut Context<Self>) {
         self.show_about = false;
         cx.notify();
     }
 }
 
 impl Render for MainWindow {
-    fn render(&mut self, cx: &mut ViewContext<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let has_files = self.app_state.files.read(cx).len() > 0;
 
         div()
@@ -176,17 +177,17 @@ impl Render for MainWindow {
                             .child(
                                 Button::new("add-files")
                                     .label("ファイル追加")
-                                    .variant(ButtonVariant::Primary)
-                                    .on_click(cx.listener(|this, _, cx| {
+                                    .with_variant(ButtonVariant::Primary)
+                                    .on_click(cx.listener(|this, _, _, cx| {
                                         this.open_file_dialog(cx);
                                     }))
                             )
                             .child(
                                 Button::new("clear-queue")
                                     .label("クリア")
-                                    .variant(ButtonVariant::Ghost)
+                                    .with_variant(ButtonVariant::Ghost)
                                     .disabled(!has_files)
-                                    .on_click(cx.listener(|this, _, cx| {
+                                    .on_click(cx.listener(|this, _, _, cx| {
                                         this.clear_queue(cx);
                                     }))
                             )
@@ -218,17 +219,17 @@ impl Render for MainWindow {
                             .child(
                                 Button::new("start")
                                     .label("変換開始")
-                                    .variant(ButtonVariant::Primary)
+                                    .with_variant(ButtonVariant::Primary)
                                     .disabled(!has_files)
-                                    .on_click(cx.listener(|this, _, cx| {
+                                    .on_click(cx.listener(|this, _, _, cx| {
                                         this.start_transcode(cx);
                                     }))
                             )
                             .child(
                                 Button::new("about")
                                     .label("About")
-                                    .variant(ButtonVariant::Ghost)
-                                    .on_click(cx.listener(|this, _, cx| {
+                                    .with_variant(ButtonVariant::Ghost)
+                                    .on_click(cx.listener(|this, _, _, cx| {
                                         this.show_about(cx);
                                     }))
                             )
@@ -280,16 +281,16 @@ impl Render for MainWindow {
                         .items_center()
                         .justify_center()
                         .bg(rgba(0x00000080))
-                        .on_mouse_down(MouseButton::Left, cx.listener(|this, _, cx| {
+                        .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
                             this.hide_about(cx);
                         }))
                         .child(
                             div()
-                                .on_mouse_down(MouseButton::Left, |ev, cx| {
+                                .on_mouse_down(MouseButton::Left, |_, _, cx| {
                                     // ダイアログ内のクリックは伝播させない
                                     cx.stop_propagation();
                                 })
-                                .child(AboutDialog::render_content(cx.listener(|this, _, cx| {
+                                .child(AboutDialog::render_content(cx.listener(|this, _, _, cx| {
                                     this.hide_about(cx);
                                 })))
                         )

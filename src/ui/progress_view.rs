@@ -3,7 +3,6 @@
 use gpui::*;
 
 use crate::app::AppState;
-use crate::transcoder::progress::format_duration;
 
 /// 進捗ビュー
 pub struct ProgressView {
@@ -12,13 +11,13 @@ pub struct ProgressView {
 }
 
 impl ProgressView {
-    pub fn new(app_state: AppState, _cx: &mut ViewContext<Self>) -> Self {
+    pub fn new(app_state: AppState, _cx: &mut Context<Self>) -> Self {
         Self { app_state }
     }
 }
 
 impl Render for ProgressView {
-    fn render(&mut self, cx: &mut ViewContext<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let current_job = self.app_state.current_job.read(cx);
         let ffmpeg_status = if self.app_state.ffmpeg_path.read(cx).is_some() {
             "FFmpeg: 準備完了"

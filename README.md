@@ -44,14 +44,38 @@ mp4, mkv, avi, mov, webm, flv, wmv, m4v, ts
 
 ## ビルド方法
 
+### 前提条件
+
+- **Rust** (rustup でインストール推奨)
+- **Visual Studio Build Tools 2022** (Windows の場合必須)
+  - 「C++ によるデスクトップ開発」ワークロードをインストール
+  - Windows SDK が必要
+
+### Windows でのビルド
+
+Windows では Visual Studio の開発者環境を有効にしてからビルドする必要があります：
+
 ```powershell
-# 依存関係をインストール（初回のみ）
-# Windowsの場合、Visual Studio Build Toolsが必要です
+# PowerShell の場合
+cmd /c "`"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat`" >nul 2>&1 && cargo build --release"
 
-# ビルド
+# または、x64 Native Tools Command Prompt for VS 2022 を開いてから
 cargo build --release
+```
 
-# 実行
+### 開発者コマンドプロンプトを使用する方法
+
+1. スタートメニューから「x64 Native Tools Command Prompt for VS 2022」を起動
+2. プロジェクトディレクトリに移動
+3. `cargo build --release` を実行
+
+### 実行
+
+```powershell
+# リリースビルドの実行ファイル
+.\target\release\kamaitachi.exe
+
+# または開発用
 cargo run --release
 ```
 
@@ -62,6 +86,18 @@ cargo run --release
 $env:FFMPEG_DIR = "C:\Users\yuubi\AppData\Local\UniGetUI\Chocolatey"
 cargo run --release
 ```
+
+### トラブルシューティング
+
+#### `ring` クレートのビルドエラー
+
+`vcruntime.h` が見つからないエラーが出る場合、Visual Studio の環境変数が設定されていません。
+上記の「Windows でのビルド」セクションの手順に従って、vcvars64.bat を実行してからビルドしてください。
+
+#### リンカーエラー (`link: not found` など)
+
+Git Bash の `/usr/bin/link` が使用されている可能性があります。
+上記の Developer Command Prompt を使用するか、PATH の設定を確認してください。
 
 ## ライセンス
 

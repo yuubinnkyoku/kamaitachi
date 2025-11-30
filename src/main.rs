@@ -22,7 +22,7 @@ fn main() -> Result<()> {
     info!("kamaitachi v{} starting...", env!("CARGO_PKG_VERSION"));
 
     // GPUIアプリケーション起動
-    Application::new().run(|cx: &mut AppContext| {
+    Application::new().run(|cx: &mut App| {
         // アプリケーション状態を初期化
         let app_state = app::AppState::new(cx);
 
@@ -43,7 +43,7 @@ fn main() -> Result<()> {
                 })),
                 ..Default::default()
             },
-            |cx| cx.new_view(|cx| ui::MainWindow::new(app_state, cx)),
+            |_, cx| cx.new(|cx| ui::MainWindow::new(app_state, cx)),
         )
         .expect("Failed to open window");
     });

@@ -1,42 +1,41 @@
 //! アプリケーション状態管理
 
 use crate::config::Settings;
-use crate::transcoder::{HwAccelType, TranscodeJob, TranscodeSettings};
+use crate::transcoder::{TranscodeJob, TranscodeSettings};
 use gpui::*;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 /// アプリケーションのグローバル状態
 #[derive(Clone)]
 pub struct AppState {
     /// ファイルキュー
-    pub files: Model<Vec<FileEntry>>,
+    pub files: Entity<Vec<FileEntry>>,
     /// トランスコード設定
-    pub transcode_settings: Model<TranscodeSettings>,
+    pub transcode_settings: Entity<TranscodeSettings>,
     /// 現在のジョブ
-    pub current_job: Model<Option<TranscodeJob>>,
+    pub current_job: Entity<Option<TranscodeJob>>,
     /// アプリケーション設定
-    pub settings: Model<Settings>,
+    pub settings: Entity<Settings>,
     /// FFmpegパス
-    pub ffmpeg_path: Model<Option<PathBuf>>,
+    pub ffmpeg_path: Entity<Option<PathBuf>>,
 }
 
 impl AppState {
-    pub fn new(cx: &mut AppContext) -> Self {
+    pub fn new(cx: &mut App) -> Self {
         // 設定をロード
         let settings = Settings::load().unwrap_or_default();
 
         Self {
-            files: cx.new_model(|_| Vec::new()),
-            transcode_settings: cx.new_model(|_| TranscodeSettings::default()),
-            current_job: cx.new_model(|_| None),
-            settings: cx.new_model(|_| settings),
-            ffmpeg_path: cx.new_model(|_| None),
+            files: cx.new(|_| Vec::new()),
+            transcode_settings: cx.new(|_| TranscodeSettings::default()),
+            current_job: cx.new(|_| None),
+            settings: cx.new(|_| settings),
+            ffmpeg_path: cx.new(|_| None),
         }
     }
 
     /// ファイルをキューに追加
-    pub fn add_files(&self, paths: Vec<PathBuf>, cx: &mut AppContext) {
+    pub fn add_files(&self, paths: Vec<PathBuf>, cx: &mut App) {
         self.files.update(cx, |files, _| {
             for path in paths {
                 if Self::is_supported_format(&path) {
@@ -48,7 +47,7 @@ impl AppState {
     }
 
     /// ファイルをキューから削除
-    pub fn remove_file(&self, index: usize, cx: &mut AppContext) {
+    pub fn remove_file(&self, index: usize, cx: &mut App) {
         self.files.update(cx, |files, _| {
             if index < files.len() {
                 files.remove(index);
@@ -57,7 +56,7 @@ impl AppState {
     }
 
     /// キューをクリア
-    pub fn clear_files(&self, cx: &mut AppContext) {
+    pub fn clear_files(&self, cx: &mut App) {
         self.files.update(cx, |files, _| {
             files.clear();
         });

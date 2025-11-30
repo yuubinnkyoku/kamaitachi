@@ -1,13 +1,12 @@
 //! エンコード設定パネル
 
 use gpui::*;
-use gpui_component::button::{Button, ButtonVariant};
-use gpui_component::input::TextInput;
-use gpui_component::slider::Slider;
+use gpui::prelude::FluentBuilder;
+use gpui_component::button::{Button, ButtonVariant, ButtonVariants};
 
 use crate::app::AppState;
 use crate::transcoder::{
-    AudioCodec, ContainerFormat, HwAccelType, TranscodeSettings, VideoCodec, VideoPreset,
+    AudioCodec, ContainerFormat, HwAccelType, VideoCodec, VideoPreset,
     VideoResolution,
 };
 
@@ -18,7 +17,7 @@ pub struct SettingsPanel {
 }
 
 impl SettingsPanel {
-    pub fn new(app_state: AppState, _cx: &mut ViewContext<Self>) -> Self {
+    pub fn new(app_state: AppState, _cx: &mut Context<Self>) -> Self {
         Self { app_state }
     }
 
@@ -28,8 +27,8 @@ impl SettingsPanel {
         label: &str,
         current: T,
         options: &[(T, &str)],
-        on_change: impl Fn(T, &mut ViewContext<Self>) + 'static,
-        cx: &mut ViewContext<Self>,
+        _on_change: impl Fn(T, &mut Context<Self>) + 'static,
+        cx: &mut Context<Self>,
     ) -> impl IntoElement {
         div()
             .w_full()
@@ -51,7 +50,7 @@ impl SettingsPanel {
                     .children(
                         options.iter().map(|(value, name)| {
                             let is_selected = *value == current;
-                            let value_clone = value.clone();
+                            let _value_clone = value.clone();
                             
                             div()
                                 .px(px(8.0))
@@ -62,8 +61,8 @@ impl SettingsPanel {
                                 .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
                                 .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
                                 .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                                .on_click(cx.listener(move |this, _, cx| {
-                                    on_change(value_clone.clone(), cx);
+                                .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
+                                    // TODO: on_change実装
                                     cx.notify();
                                 }))
                                 .child(name.to_string())
@@ -74,7 +73,7 @@ impl SettingsPanel {
 }
 
 impl Render for SettingsPanel {
-    fn render(&mut self, cx: &mut ViewContext<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let settings = self.app_state.transcode_settings.read(cx).clone();
 
         div()
@@ -105,7 +104,7 @@ impl Render for SettingsPanel {
                     .flex_1()
                     .w_full()
                     .p(px(16.0))
-                    .overflow_y_scroll()
+                    .overflow_hidden()
                     .flex()
                     .flex_col()
                     .gap(px(16.0))
@@ -117,7 +116,7 @@ impl Render for SettingsPanel {
                             (ContainerFormat::Mp4, "MP4"),
                             (ContainerFormat::Mkv, "MKV"),
                         ],
-                        |value, cx| {
+                        |_value, _cx| {
                             // TODO: 更新
                         },
                         cx,
@@ -132,7 +131,7 @@ impl Render for SettingsPanel {
                             (VideoCodec::Vp9, "VP9"),
                             (VideoCodec::Av1, "AV1"),
                         ],
-                        |value, cx| {
+                        |_value, _cx| {
                             // TODO: 更新
                         },
                         cx,
@@ -148,7 +147,7 @@ impl Render for SettingsPanel {
                             (VideoResolution::Hd720, "720p"),
                             (VideoResolution::Sd480, "480p"),
                         ],
-                        |value, cx| {
+                        |_value, _cx| {
                             // TODO: 更新
                         },
                         cx,
@@ -201,7 +200,7 @@ impl Render for SettingsPanel {
                             (VideoPreset::Slow, "高品質"),
                             (VideoPreset::Veryslow, "最高品質"),
                         ],
-                        |value, cx| {
+                        |_value, _cx| {
                             // TODO: 更新
                         },
                         cx,
@@ -217,7 +216,7 @@ impl Render for SettingsPanel {
                             (HwAccelType::Amf, "AMD"),
                             (HwAccelType::Software, "ソフトウェア"),
                         ],
-                        |value, cx| {
+                        |_value, _cx| {
                             // TODO: 更新
                         },
                         cx,
@@ -239,27 +238,48 @@ impl Render for SettingsPanel {
                             (AudioCodec::Flac, "FLAC"),
                             (AudioCodec::Copy, "コピー"),
                         ],
-                        |value, cx| {
+                        |_value, _cx| {
                             // TODO: 更新
                         },
                         cx,
                     ))
                     // オーディオビットレート
                     .when(settings.audio_codec != AudioCodec::Copy && settings.audio_codec != AudioCodec::Flac, |this| {
-                        this.child(self.render_select(
-                            "オーディオビットレート",
-                            settings.audio_bitrate,
-                            &[
-                                (128, "128 kbps"),
-                                (192, "192 kbps"),
-                                (256, "256 kbps"),
-                                (320, "320 kbps"),
-                            ],
-                            |value, cx| {
-                                // TODO: 更新
-                            },
-                            cx,
-                        ))
+                        this.child(
+                            div()
+                                .w_full()
+                                .flex()
+                                .flex_col()
+                                .gap(px(4.0))
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .text_color(rgb(0x6c7086))
+                                        .child("オーディオビットレート")
+                                )
+                                .child(
+                                    div()
+                                        .w_full()
+                                        .flex()
+                                        .flex_wrap()
+                                        .gap(px(4.0))
+                                        .children(
+                                            [(128, "128 kbps"), (192, "192 kbps"), (256, "256 kbps"), (320, "320 kbps")].iter().map(|(value, name)| {
+                                                let is_selected = *value == settings.audio_bitrate;
+                                                div()
+                                                    .px(px(8.0))
+                                                    .py(px(4.0))
+                                                    .rounded(px(4.0))
+                                                    .text_xs()
+                                                    .cursor_pointer()
+                                                    .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
+                                                    .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
+                                                    .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
+                                                    .child(name.to_string())
+                                            })
+                                        )
+                                )
+                        )
                     })
                     // セクション区切り
                     .child(
@@ -306,7 +326,7 @@ impl Render for SettingsPanel {
                                     .child(
                                         Button::new("select-output")
                                             .label("選択")
-                                            .variant(ButtonVariant::Ghost)
+                                            .with_variant(ButtonVariant::Ghost)
                                     )
                             )
                     )

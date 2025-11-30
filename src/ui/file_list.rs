@@ -1,8 +1,9 @@
 //! ファイルリスト（Table）
 
+use gpui::prelude::FluentBuilder;
 use gpui::*;
-use gpui_component::button::{Button, ButtonVariant};
-use gpui_component::table::{Table, TableDelegate, ColFixed, ColSort};
+use gpui_component::button::{Button, ButtonVariant, ButtonVariants};
+use gpui_component::Disableable;
 
 use crate::app::{AppState, FileEntry, FileStatus};
 
@@ -15,7 +16,7 @@ pub struct FileList {
 }
 
 impl FileList {
-    pub fn new(app_state: AppState, _cx: &mut ViewContext<Self>) -> Self {
+    pub fn new(app_state: AppState, _cx: &mut Context<Self>) -> Self {
         Self {
             app_state,
             selected_index: None,
@@ -23,9 +24,13 @@ impl FileList {
     }
 
     /// ファイルを削除
-    fn remove_selected(&mut self, cx: &mut ViewContext<Self>) {
+    fn remove_selected(&mut self, cx: &mut Context<Self>) {
         if let Some(index) = self.selected_index {
-            self.app_state.remove_file(index, cx);
+            self.app_state.files.update(cx, |files, _| {
+                if index < files.len() {
+                    files.remove(index);
+                }
+            });
             self.selected_index = None;
             cx.notify();
         }
@@ -33,8 +38,11 @@ impl FileList {
 }
 
 impl Render for FileList {
-    fn render(&mut self, cx: &mut ViewContext<Self>) -> impl IntoElement {
-        let files = self.app_state.files.read(cx);
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let files = self.app_state.files.read(cx).clone();
+        let files_len = files.len();
+        let is_empty = files.is_empty();
+        let selected = self.selected_index;
 
         div()
             .size_full()
@@ -56,53 +64,52 @@ impl Render for FileList {
                         div()
                             .text_sm()
                             .font_weight(FontWeight::MEDIUM)
-                            .child(format!("ファイル ({} 件)", files.len()))
+                            .child(format!("ファイル ({} 件)", files_len)),
                     )
                     .child(
                         Button::new("remove-selected")
                             .label("削除")
-                            .variant(ButtonVariant::Ghost)
-                            .disabled(self.selected_index.is_none())
-                            .on_click(cx.listener(|this, _, cx| {
+                            .with_variant(ButtonVariant::Ghost)
+                            .disabled(selected.is_none())
+                            .on_click(cx.listener(|this, _, _, cx| {
                                 this.remove_selected(cx);
-                            }))
-                    )
+                            })),
+                    ),
             )
             // ファイルリスト
             .child(
                 div()
                     .flex_1()
                     .w_full()
-                    .overflow_y_scroll()
-                    .children(
-                        if files.is_empty() {
-                            vec![
-                                div()
-                                    .size_full()
-                                    .flex()
-                                    .items_center()
-                                    .justify_center()
-                                    .text_color(rgb(0x6c7086))
-                                    .child("ファイルをドラッグ＆ドロップまたは「ファイル追加」ボタンで追加")
-                                    .into_any_element()
-                            ]
-                        } else {
-                            files
-                                .iter()
-                                .enumerate()
-                                .map(|(index, file)| {
-                                    self.render_file_row(index, file, cx)
-                                })
-                                .collect()
-                        }
-                    )
+                    .overflow_hidden()
+                    .children(if is_empty {
+                        vec![div()
+                            .size_full()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .text_color(rgb(0x6c7086))
+                            .child("ファイルをドラッグ＆ドロップまたは「ファイル追加」ボタンで追加")
+                            .into_any_element()]
+                    } else {
+                        files
+                            .iter()
+                            .enumerate()
+                            .map(|(index, file)| self.render_file_row(index, file, cx))
+                            .collect()
+                    }),
             )
     }
 }
 
 impl FileList {
     /// ファイル行をレンダリング
-    fn render_file_row(&self, index: usize, file: &FileEntry, cx: &mut ViewContext<Self>) -> AnyElement {
+    fn render_file_row(
+        &self,
+        index: usize,
+        file: &FileEntry,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let is_selected = self.selected_index == Some(index);
         let status_color = match file.status {
             FileStatus::Pending => rgb(0x6c7086),
@@ -112,6 +119,14 @@ impl FileList {
             FileStatus::Cancelled => rgb(0xfab387),
         };
 
+        // ライフタイムの問題を避けるため、所有権を持つ値に変換
+        let file_name = file.name.clone();
+        let file_path = file.path.to_string_lossy().to_string();
+        let file_size = file.formatted_size();
+        let status_label = file.status.label().to_string();
+        let is_processing = file.status == FileStatus::Processing;
+        let progress = file.progress;
+
         div()
             .w_full()
             .h(px(48.0))
@@ -119,21 +134,22 @@ impl FileList {
             .flex()
             .items_center()
             .gap(px(12.0))
-            .bg(if is_selected { rgb(0x313244) } else { rgb(0x1e1e2e) })
+            .bg(if is_selected {
+                rgb(0x313244)
+            } else {
+                rgb(0x1e1e2e)
+            })
             .hover(|s| s.bg(rgb(0x45475a)))
             .cursor_pointer()
-            .on_click(cx.listener(move |this, _, cx| {
-                this.selected_index = Some(index);
-                cx.notify();
-            }))
-            // ステータスインジケーター
-            .child(
-                div()
-                    .w(px(8.0))
-                    .h(px(8.0))
-                    .rounded_full()
-                    .bg(status_color)
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _, _, cx| {
+                    this.selected_index = Some(index);
+                    cx.notify();
+                }),
             )
+            // ステータスインジケーター
+            .child(div().w(px(8.0)).h(px(8.0)).rounded_full().bg(status_color))
             // ファイル情報
             .child(
                 div()
@@ -147,15 +163,15 @@ impl FileList {
                             .text_sm()
                             .font_weight(FontWeight::MEDIUM)
                             .truncate()
-                            .child(file.name.clone())
+                            .child(file_name),
                     )
                     .child(
                         div()
                             .text_xs()
                             .text_color(rgb(0x6c7086))
                             .truncate()
-                            .child(file.path.to_string_lossy().to_string())
-                    )
+                            .child(file_path),
+                    ),
             )
             // サイズ
             .child(
@@ -163,7 +179,7 @@ impl FileList {
                     .w(px(80.0))
                     .text_sm()
                     .text_color(rgb(0x6c7086))
-                    .child(file.formatted_size())
+                    .child(file_size),
             )
             // ステータス
             .child(
@@ -171,10 +187,10 @@ impl FileList {
                     .w(px(80.0))
                     .text_sm()
                     .text_color(status_color)
-                    .child(file.status.label())
+                    .child(status_label),
             )
             // 進捗バー（処理中のみ表示）
-            .when(file.status == FileStatus::Processing, |this| {
+            .when(is_processing, |this| {
                 this.child(
                     div()
                         .w(px(100.0))
@@ -186,8 +202,8 @@ impl FileList {
                                 .h_full()
                                 .rounded(px(2.0))
                                 .bg(rgb(0x89b4fa))
-                                .w(relative(file.progress))
-                        )
+                                .w(relative(progress)),
+                        ),
                 )
             })
             .into_any_element()
