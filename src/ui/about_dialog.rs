@@ -190,7 +190,7 @@ const LIBRARIES: &[(&str, &str)] = &[
     ("GPUI", "Apache-2.0"),
     ("gpui-component", "Apache-2.0"),
     ("ez-ffmpeg", "MIT/Apache-2.0/MPL-2.0"),
-    ("tokio", "MIT"),
+    ("smol", "Apache-2.0/MIT"),
     ("anyhow", "MIT/Apache-2.0"),
     ("serde", "MIT/Apache-2.0"),
     ("reqwest", "MIT/Apache-2.0"),

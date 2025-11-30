@@ -17,8 +17,8 @@ gpui-component = "0.4.2"
 # ファイルダイアログ
 rfd = "0.14"
 
-# 非同期
-tokio = { version = "1", features = ["full"] }
+# 非同期（GPUIと互換性のあるsmolを使用）
+smol = "2"
 
 # ユーティリティ
 anyhow = "1"

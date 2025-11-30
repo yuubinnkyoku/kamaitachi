@@ -126,7 +126,7 @@ impl MainWindow {
     fn start_transcode(&mut self, cx: &mut Context<Self>) {
         use crate::app::FileStatus;
         use crate::transcoder::{TranscodeJob, HwAccelDetector};
-        use std::process::Stdio;
+        use std::process::{Command, Stdio};
         use log::{info, error};
 
         // FFmpegパスを取得
@@ -205,55 +205,43 @@ impl MainWindow {
                 let args = job.build_ffmpeg_args();
                 info!("Running FFmpeg: {:?} {:?}", ffmpeg_path, args);
 
-                // FFmpegプロセスを起動
-                let result = tokio::process::Command::new(&ffmpeg_path)
-                    .args(&args)
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
-                    .spawn();
+                // FFmpegプロセスを別スレッドで実行（GPUIはTokioランタイムを使用しないため）
+                let ffmpeg_path_clone = ffmpeg_path.clone();
+                let result = smol::unblock(move || {
+                    Command::new(&ffmpeg_path_clone)
+                        .args(&args)
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::piped())
+                        .output()
+                }).await;
 
                 match result {
-                    Ok(child) => {
-                        // プロセスの完了を待機し、出力を取得
-                        match child.wait_with_output().await {
-                            Ok(output) => {
-                                let final_status = if output.status.success() {
-                                    info!("Transcode completed: {:?}", output_path);
-                                    FileStatus::Completed
-                                } else {
-                                    let error_msg = if !output.stderr.is_empty() {
-                                        String::from_utf8_lossy(&output.stderr).to_string()
-                                    } else {
-                                        format!("Exit code: {:?}", output.status.code())
-                                    };
-                                    error!("Transcode failed: {}", error_msg);
-                                    FileStatus::Error(error_msg)
-                                };
+                    Ok(output) => {
+                        let final_status = if output.status.success() {
+                            info!("Transcode completed: {:?}", output_path);
+                            FileStatus::Completed
+                        } else {
+                            let error_msg = if !output.stderr.is_empty() {
+                                String::from_utf8_lossy(&output.stderr).to_string()
+                            } else {
+                                format!("Exit code: {:?}", output.status.code())
+                            };
+                            error!("Transcode failed: {}", error_msg);
+                            FileStatus::Error(error_msg)
+                        };
 
-                                // ファイルの状態を更新
-                                cx.update(|cx| {
-                                    app_state.files.update(cx, |files, _| {
-                                        if let Some(f) = files.get_mut(index) {
-                                            f.status = final_status;
-                                            f.progress = 1.0;
-                                        }
-                                    });
-                                }).ok();
-                            }
-                            Err(e) => {
-                                error!("Failed to wait for FFmpeg: {}", e);
-                                cx.update(|cx| {
-                                    app_state.files.update(cx, |files, _| {
-                                        if let Some(f) = files.get_mut(index) {
-                                            f.status = FileStatus::Error(e.to_string());
-                                        }
-                                    });
-                                }).ok();
-                            }
-                        }
+                        // ファイルの状態を更新
+                        cx.update(|cx| {
+                            app_state.files.update(cx, |files, _| {
+                                if let Some(f) = files.get_mut(index) {
+                                    f.status = final_status;
+                                    f.progress = 1.0;
+                                }
+                            });
+                        }).ok();
                     }
                     Err(e) => {
-                        error!("Failed to spawn FFmpeg: {}", e);
+                        error!("Failed to run FFmpeg: {}", e);
                         cx.update(|cx| {
                             app_state.files.update(cx, |files, _| {
                                 if let Some(f) = files.get_mut(index) {

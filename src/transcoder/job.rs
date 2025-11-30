@@ -80,12 +80,12 @@ impl TranscodeJob {
     pub fn build_ffmpeg_args(&self) -> Vec<String> {
         let mut args = Vec::new();
 
+        // HWアクセラレーション設定（入力オプションなので -i の前に配置）
+        self.add_hwaccel_args(&mut args);
+
         // 入力ファイル
         args.push("-i".to_string());
         args.push(self.input_path.to_string_lossy().to_string());
-
-        // HWアクセラレーション設定
-        self.add_hwaccel_args(&mut args);
 
         // ビデオコーデック設定
         self.add_video_args(&mut args);
