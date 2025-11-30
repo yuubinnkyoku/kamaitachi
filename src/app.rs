@@ -101,29 +101,31 @@ impl CurrentProgress {
         self.total_duration_centisecs.store(0, Ordering::Relaxed);
         self.current_time_centisecs.store(0, Ordering::Relaxed);
     }
-    
+
     /// 総時間を設定（秒）
     pub fn set_total_duration_secs(&self, secs: f64) {
         let centisecs = (secs * 100.0) as u32;
-        self.total_duration_centisecs.store(centisecs, Ordering::Relaxed);
+        self.total_duration_centisecs
+            .store(centisecs, Ordering::Relaxed);
     }
-    
+
     /// 総時間を取得（秒）
     pub fn get_total_duration_secs(&self) -> f64 {
         self.total_duration_centisecs.load(Ordering::Relaxed) as f64 / 100.0
     }
-    
+
     /// 現在の処理時間位置を設定（秒）
     pub fn set_current_time_secs(&self, secs: f64) {
         let centisecs = (secs * 100.0) as u32;
-        self.current_time_centisecs.store(centisecs, Ordering::Relaxed);
+        self.current_time_centisecs
+            .store(centisecs, Ordering::Relaxed);
     }
-    
+
     /// 現在の処理時間位置を取得（秒）
     pub fn get_current_time_secs(&self) -> f64 {
         self.current_time_centisecs.load(Ordering::Relaxed) as f64 / 100.0
     }
-    
+
     /// time_secsベースで進捗率を計算・更新
     pub fn update_progress_from_time(&self, current_time_secs: f64) {
         self.set_current_time_secs(current_time_secs);
@@ -177,7 +179,11 @@ impl AppState {
     pub fn add_files(&self, paths: Vec<PathBuf>, cx: &mut App) {
         let settings = self.transcode_settings.read(cx).clone();
         let ffmpeg_info = self.ffmpeg_info.read(cx).clone();
-        log::info!("Adding {} files, ffmpeg_info available: {}", paths.len(), ffmpeg_info.is_some());
+        log::info!(
+            "Adding {} files, ffmpeg_info available: {}",
+            paths.len(),
+            ffmpeg_info.is_some()
+        );
         self.files.update(cx, |files, _| {
             for path in paths {
                 if Self::is_supported_format(&path) {
@@ -185,9 +191,16 @@ impl AppState {
                     // ffprobeでメタデータを取得
                     if let Some(ref info) = ffmpeg_info {
                         entry.probe_metadata(info);
-                        log::info!("Probed {}: duration={:?}", entry.name, entry.metadata.duration);
+                        log::info!(
+                            "Probed {}: duration={:?}",
+                            entry.name,
+                            entry.metadata.duration
+                        );
                     } else {
-                        log::warn!("ffmpeg_info not available, skipping probe for {}", entry.name);
+                        log::warn!(
+                            "ffmpeg_info not available, skipping probe for {}",
+                            entry.name
+                        );
                     }
                     entry.update_estimated_size(&settings);
                     files.push(entry);
