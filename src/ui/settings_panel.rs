@@ -21,15 +21,14 @@ impl SettingsPanel {
         Self { app_state }
     }
 
-    /// ドロップダウンを選択肢をレンダリング
-    fn render_select<T: Clone + PartialEq + 'static>(
-        &self,
-        label: &str,
-        current: T,
-        options: &[(T, &str)],
-        _on_change: impl Fn(T, &mut Context<Self>) + 'static,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
+    /// コンテナ形式ボタンをレンダリング
+    fn render_container_select(&self, current: ContainerFormat, cx: &mut Context<Self>) -> impl IntoElement {
+        let app_state = self.app_state.clone();
+        let options = [
+            (ContainerFormat::Mp4, "MP4"),
+            (ContainerFormat::Mkv, "MKV"),
+        ];
+
         div()
             .w_full()
             .flex()
@@ -39,7 +38,7 @@ impl SettingsPanel {
                 div()
                     .text_xs()
                     .text_color(rgb(0x6c7086))
-                    .child(label.to_string())
+                    .child("コンテナ形式")
             )
             .child(
                 div()
@@ -50,9 +49,11 @@ impl SettingsPanel {
                     .children(
                         options.iter().map(|(value, name)| {
                             let is_selected = *value == current;
-                            let _value_clone = value.clone();
-                            
+                            let value_clone = *value;
+                            let app_state_clone = app_state.clone();
+
                             div()
+                                .id(SharedString::from(format!("container-{}", name)))
                                 .px(px(8.0))
                                 .py(px(4.0))
                                 .rounded(px(4.0))
@@ -61,8 +62,338 @@ impl SettingsPanel {
                                 .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
                                 .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
                                 .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                                .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
-                                    // TODO: on_change実装
+                                .on_click(cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone.transcode_settings.update(cx, |settings, _| {
+                                        settings.container = value_clone;
+                                    });
+                                    cx.notify();
+                                }))
+                                .child(name.to_string())
+                        })
+                    )
+            )
+    }
+
+    /// ビデオコーデックボタンをレンダリング
+    fn render_video_codec_select(&self, current: VideoCodec, cx: &mut Context<Self>) -> impl IntoElement {
+        let app_state = self.app_state.clone();
+        let options = [
+            (VideoCodec::H264, "H.264"),
+            (VideoCodec::H265, "H.265"),
+            (VideoCodec::Vp9, "VP9"),
+            (VideoCodec::Av1, "AV1"),
+        ];
+
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(rgb(0x6c7086))
+                    .child("ビデオコーデック")
+            )
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(4.0))
+                    .children(
+                        options.iter().map(|(value, name)| {
+                            let is_selected = *value == current;
+                            let value_clone = *value;
+                            let app_state_clone = app_state.clone();
+
+                            div()
+                                .id(SharedString::from(format!("video-codec-{}", name)))
+                                .px(px(8.0))
+                                .py(px(4.0))
+                                .rounded(px(4.0))
+                                .text_xs()
+                                .cursor_pointer()
+                                .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
+                                .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
+                                .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
+                                .on_click(cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone.transcode_settings.update(cx, |settings, _| {
+                                        settings.video_codec = value_clone;
+                                    });
+                                    cx.notify();
+                                }))
+                                .child(name.to_string())
+                        })
+                    )
+            )
+    }
+
+    /// 解像度ボタンをレンダリング
+    fn render_resolution_select(&self, current: VideoResolution, cx: &mut Context<Self>) -> impl IntoElement {
+        let app_state = self.app_state.clone();
+        let options = [
+            (VideoResolution::Original, "元の解像度"),
+            (VideoResolution::Uhd4K, "4K"),
+            (VideoResolution::Fhd1080, "1080p"),
+            (VideoResolution::Hd720, "720p"),
+            (VideoResolution::Sd480, "480p"),
+        ];
+
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(rgb(0x6c7086))
+                    .child("解像度")
+            )
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(4.0))
+                    .children(
+                        options.iter().map(|(value, name)| {
+                            let is_selected = *value == current;
+                            let value_clone = *value;
+                            let app_state_clone = app_state.clone();
+
+                            div()
+                                .id(SharedString::from(format!("resolution-{}", name)))
+                                .px(px(8.0))
+                                .py(px(4.0))
+                                .rounded(px(4.0))
+                                .text_xs()
+                                .cursor_pointer()
+                                .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
+                                .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
+                                .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
+                                .on_click(cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone.transcode_settings.update(cx, |settings, _| {
+                                        settings.resolution = value_clone;
+                                    });
+                                    cx.notify();
+                                }))
+                                .child(name.to_string())
+                        })
+                    )
+            )
+    }
+
+    /// プリセットボタンをレンダリング
+    fn render_preset_select(&self, current: VideoPreset, cx: &mut Context<Self>) -> impl IntoElement {
+        let app_state = self.app_state.clone();
+        let options = [
+            (VideoPreset::Ultrafast, "最速"),
+            (VideoPreset::Fast, "高速"),
+            (VideoPreset::Medium, "標準"),
+            (VideoPreset::Slow, "高品質"),
+            (VideoPreset::Veryslow, "最高品質"),
+        ];
+
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(rgb(0x6c7086))
+                    .child("プリセット")
+            )
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(4.0))
+                    .children(
+                        options.iter().map(|(value, name)| {
+                            let is_selected = *value == current;
+                            let value_clone = *value;
+                            let app_state_clone = app_state.clone();
+
+                            div()
+                                .id(SharedString::from(format!("preset-{}", name)))
+                                .px(px(8.0))
+                                .py(px(4.0))
+                                .rounded(px(4.0))
+                                .text_xs()
+                                .cursor_pointer()
+                                .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
+                                .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
+                                .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
+                                .on_click(cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone.transcode_settings.update(cx, |settings, _| {
+                                        settings.preset = value_clone;
+                                    });
+                                    cx.notify();
+                                }))
+                                .child(name.to_string())
+                        })
+                    )
+            )
+    }
+
+    /// HWアクセラレーションボタンをレンダリング
+    fn render_hwaccel_select(&self, current: HwAccelType, cx: &mut Context<Self>) -> impl IntoElement {
+        let app_state = self.app_state.clone();
+        let options = [
+            (HwAccelType::Auto, "自動"),
+            (HwAccelType::Nvenc, "NVIDIA"),
+            (HwAccelType::Qsv, "Intel"),
+            (HwAccelType::Amf, "AMD"),
+            (HwAccelType::Software, "ソフトウェア"),
+        ];
+
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(rgb(0x6c7086))
+                    .child("HWアクセラレーション")
+            )
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(4.0))
+                    .children(
+                        options.iter().map(|(value, name)| {
+                            let is_selected = *value == current;
+                            let value_clone = *value;
+                            let app_state_clone = app_state.clone();
+
+                            div()
+                                .id(SharedString::from(format!("hwaccel-{}", name)))
+                                .px(px(8.0))
+                                .py(px(4.0))
+                                .rounded(px(4.0))
+                                .text_xs()
+                                .cursor_pointer()
+                                .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
+                                .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
+                                .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
+                                .on_click(cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone.transcode_settings.update(cx, |settings, _| {
+                                        settings.hwaccel = value_clone;
+                                    });
+                                    cx.notify();
+                                }))
+                                .child(name.to_string())
+                        })
+                    )
+            )
+    }
+
+    /// オーディオコーデックボタンをレンダリング
+    fn render_audio_codec_select(&self, current: AudioCodec, cx: &mut Context<Self>) -> impl IntoElement {
+        let app_state = self.app_state.clone();
+        let options = [
+            (AudioCodec::Aac, "AAC"),
+            (AudioCodec::Mp3, "MP3"),
+            (AudioCodec::Flac, "FLAC"),
+            (AudioCodec::Copy, "コピー"),
+        ];
+
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(rgb(0x6c7086))
+                    .child("オーディオコーデック")
+            )
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(4.0))
+                    .children(
+                        options.iter().map(|(value, name)| {
+                            let is_selected = *value == current;
+                            let value_clone = *value;
+                            let app_state_clone = app_state.clone();
+
+                            div()
+                                .id(SharedString::from(format!("audio-codec-{}", name)))
+                                .px(px(8.0))
+                                .py(px(4.0))
+                                .rounded(px(4.0))
+                                .text_xs()
+                                .cursor_pointer()
+                                .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
+                                .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
+                                .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
+                                .on_click(cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone.transcode_settings.update(cx, |settings, _| {
+                                        settings.audio_codec = value_clone;
+                                    });
+                                    cx.notify();
+                                }))
+                                .child(name.to_string())
+                        })
+                    )
+            )
+    }
+
+    /// オーディオビットレートボタンをレンダリング
+    fn render_audio_bitrate_select(&self, current: u32, cx: &mut Context<Self>) -> impl IntoElement {
+        let app_state = self.app_state.clone();
+        let options = [(128u32, "128 kbps"), (192u32, "192 kbps"), (256u32, "256 kbps"), (320u32, "320 kbps")];
+
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(rgb(0x6c7086))
+                    .child("オーディオビットレート")
+            )
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(4.0))
+                    .children(
+                        options.iter().map(|(value, name)| {
+                            let is_selected = *value == current;
+                            let value_clone = *value;
+                            let app_state_clone = app_state.clone();
+
+                            div()
+                                .id(SharedString::from(format!("audio-bitrate-{}", value)))
+                                .px(px(8.0))
+                                .py(px(4.0))
+                                .rounded(px(4.0))
+                                .text_xs()
+                                .cursor_pointer()
+                                .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
+                                .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
+                                .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
+                                .on_click(cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone.transcode_settings.update(cx, |settings, _| {
+                                        settings.audio_bitrate = value_clone;
+                                    });
                                     cx.notify();
                                 }))
                                 .child(name.to_string())
@@ -109,49 +440,11 @@ impl Render for SettingsPanel {
                     .flex_col()
                     .gap(px(16.0))
                     // 出力形式
-                    .child(self.render_select(
-                        "コンテナ形式",
-                        settings.container,
-                        &[
-                            (ContainerFormat::Mp4, "MP4"),
-                            (ContainerFormat::Mkv, "MKV"),
-                        ],
-                        |_value, _cx| {
-                            // TODO: 更新
-                        },
-                        cx,
-                    ))
+                    .child(self.render_container_select(settings.container, cx))
                     // ビデオコーデック
-                    .child(self.render_select(
-                        "ビデオコーデック",
-                        settings.video_codec,
-                        &[
-                            (VideoCodec::H264, "H.264"),
-                            (VideoCodec::H265, "H.265"),
-                            (VideoCodec::Vp9, "VP9"),
-                            (VideoCodec::Av1, "AV1"),
-                        ],
-                        |_value, _cx| {
-                            // TODO: 更新
-                        },
-                        cx,
-                    ))
+                    .child(self.render_video_codec_select(settings.video_codec, cx))
                     // 解像度
-                    .child(self.render_select(
-                        "解像度",
-                        settings.resolution,
-                        &[
-                            (VideoResolution::Original, "元の解像度"),
-                            (VideoResolution::Uhd4K, "4K"),
-                            (VideoResolution::Fhd1080, "1080p"),
-                            (VideoResolution::Hd720, "720p"),
-                            (VideoResolution::Sd480, "480p"),
-                        ],
-                        |_value, _cx| {
-                            // TODO: 更新
-                        },
-                        cx,
-                    ))
+                    .child(self.render_resolution_select(settings.resolution, cx))
                     // 品質 (CRF)
                     .child(
                         div()
@@ -190,37 +483,9 @@ impl Render for SettingsPanel {
                             )
                     )
                     // プリセット
-                    .child(self.render_select(
-                        "プリセット",
-                        settings.preset,
-                        &[
-                            (VideoPreset::Ultrafast, "最速"),
-                            (VideoPreset::Fast, "高速"),
-                            (VideoPreset::Medium, "標準"),
-                            (VideoPreset::Slow, "高品質"),
-                            (VideoPreset::Veryslow, "最高品質"),
-                        ],
-                        |_value, _cx| {
-                            // TODO: 更新
-                        },
-                        cx,
-                    ))
+                    .child(self.render_preset_select(settings.preset, cx))
                     // HWアクセラレーション
-                    .child(self.render_select(
-                        "HWアクセラレーション",
-                        settings.hwaccel,
-                        &[
-                            (HwAccelType::Auto, "自動"),
-                            (HwAccelType::Nvenc, "NVIDIA"),
-                            (HwAccelType::Qsv, "Intel"),
-                            (HwAccelType::Amf, "AMD"),
-                            (HwAccelType::Software, "ソフトウェア"),
-                        ],
-                        |_value, _cx| {
-                            // TODO: 更新
-                        },
-                        cx,
-                    ))
+                    .child(self.render_hwaccel_select(settings.hwaccel, cx))
                     // セクション区切り
                     .child(
                         div()
@@ -229,57 +494,10 @@ impl Render for SettingsPanel {
                             .bg(rgb(0x313244))
                     )
                     // オーディオコーデック
-                    .child(self.render_select(
-                        "オーディオコーデック",
-                        settings.audio_codec,
-                        &[
-                            (AudioCodec::Aac, "AAC"),
-                            (AudioCodec::Mp3, "MP3"),
-                            (AudioCodec::Flac, "FLAC"),
-                            (AudioCodec::Copy, "コピー"),
-                        ],
-                        |_value, _cx| {
-                            // TODO: 更新
-                        },
-                        cx,
-                    ))
+                    .child(self.render_audio_codec_select(settings.audio_codec, cx))
                     // オーディオビットレート
                     .when(settings.audio_codec != AudioCodec::Copy && settings.audio_codec != AudioCodec::Flac, |this| {
-                        this.child(
-                            div()
-                                .w_full()
-                                .flex()
-                                .flex_col()
-                                .gap(px(4.0))
-                                .child(
-                                    div()
-                                        .text_xs()
-                                        .text_color(rgb(0x6c7086))
-                                        .child("オーディオビットレート")
-                                )
-                                .child(
-                                    div()
-                                        .w_full()
-                                        .flex()
-                                        .flex_wrap()
-                                        .gap(px(4.0))
-                                        .children(
-                                            [(128, "128 kbps"), (192, "192 kbps"), (256, "256 kbps"), (320, "320 kbps")].iter().map(|(value, name)| {
-                                                let is_selected = *value == settings.audio_bitrate;
-                                                div()
-                                                    .px(px(8.0))
-                                                    .py(px(4.0))
-                                                    .rounded(px(4.0))
-                                                    .text_xs()
-                                                    .cursor_pointer()
-                                                    .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
-                                                    .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
-                                                    .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                                                    .child(name.to_string())
-                                            })
-                                        )
-                                )
-                        )
+                        this.child(self.render_audio_bitrate_select(settings.audio_bitrate, cx))
                     })
                     // セクション区切り
                     .child(
