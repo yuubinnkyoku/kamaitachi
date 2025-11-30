@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use super::{HwAccelDetector, HwAccelType, TranscodeProgress, TranscodeSettings};
+use super::{HwAccelDetector, HwAccelType, TranscodeProgress, TranscodeSettings, VideoCodec};
 
 /// トランスコードジョブ
 #[derive(Clone)]
@@ -136,7 +136,7 @@ impl TranscodeJob {
 
     /// ビデオコーデック引数を追加
     fn add_video_args(&self, args: &mut Vec<String>) {
-        use super::{VideoCodec, VideoResolution};
+        use super::VideoResolution;
 
         // コーデック
         let encoder = self
@@ -156,27 +156,61 @@ impl TranscodeJob {
             args.push(format!("scale={}:{}", w, h));
         }
 
-        // CRF（品質）- HWエンコーダーでは-qpを使用
-        match self.settings.hwaccel {
-            HwAccelType::Nvenc | HwAccelType::Qsv | HwAccelType::Amf => {
-                args.push("-qp".to_string());
-                args.push(self.settings.crf.to_string());
-            }
-            _ => {
-                args.push("-crf".to_string());
-                args.push(self.settings.crf.to_string());
-            }
-        }
+        // VP9 (libvpx-vp9) は特別な処理が必要
+        if self.settings.video_codec == VideoCodec::Vp9
+            && (self.settings.hwaccel == HwAccelType::Software
+                || self.settings.hwaccel == HwAccelType::Auto
+                || self.settings.hwaccel == HwAccelType::Nvenc  // NVENCはVP9非対応なのでlibvpx-vp9
+                || self.settings.hwaccel == HwAccelType::Amf)   // AMFはVP9非対応なのでlibvpx-vp9
+        {
+            // VP9では -b:v 0 + -crf でCRFモードを使用
+            args.push("-b:v".to_string());
+            args.push("0".to_string());
+            args.push("-crf".to_string());
+            // VP9のCRF範囲は0-63、H.264/H.265と同じ値をそのまま使用
+            args.push(self.settings.crf.to_string());
 
-        // プリセット
-        let preset_arg = match self.settings.hwaccel {
-            HwAccelType::Nvenc => "-preset",
-            HwAccelType::Qsv => "-preset",
-            HwAccelType::Amf => "-quality",
-            _ => "-preset",
-        };
-        args.push(preset_arg.to_string());
-        args.push(self.settings.preset.ffmpeg_name().to_string());
+            // VP9は -cpu-used オプションを使用（0-8、値が大きいほど高速）
+            args.push("-cpu-used".to_string());
+            let cpu_used = match self.settings.preset {
+                super::VideoPreset::Ultrafast => "8",
+                super::VideoPreset::Fast => "6",
+                super::VideoPreset::Medium => "4",
+                super::VideoPreset::Slow => "2",
+                super::VideoPreset::Veryslow => "0",
+            };
+            args.push(cpu_used.to_string());
+
+            // VP9は2パスエンコードでなければ -deadline を設定
+            args.push("-deadline".to_string());
+            args.push("realtime".to_string());
+
+            // row-mt を有効にしてマルチスレッド化
+            args.push("-row-mt".to_string());
+            args.push("1".to_string());
+        } else {
+            // CRF（品質）- HWエンコーダーでは-qpを使用
+            match self.settings.hwaccel {
+                HwAccelType::Nvenc | HwAccelType::Qsv | HwAccelType::Amf => {
+                    args.push("-qp".to_string());
+                    args.push(self.settings.crf.to_string());
+                }
+                _ => {
+                    args.push("-crf".to_string());
+                    args.push(self.settings.crf.to_string());
+                }
+            }
+
+            // プリセット
+            let preset_arg = match self.settings.hwaccel {
+                HwAccelType::Nvenc => "-preset",
+                HwAccelType::Qsv => "-preset",
+                HwAccelType::Amf => "-quality",
+                _ => "-preset",
+            };
+            args.push(preset_arg.to_string());
+            args.push(self.settings.preset.ffmpeg_name().to_string());
+        }
     }
 
     /// オーディオコーデック引数を追加
