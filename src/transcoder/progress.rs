@@ -307,7 +307,10 @@ pub struct VideoMetadata {
 /// 設定から予測圧縮率を計算（2024-2025年実測値準拠の改良版）
 /// この値は大まかな目安であり、実際のサイズは動画の内容によって変わる
 /// 誤差目標: ±10-15%程度
-pub fn estimate_compression_ratio(settings: &TranscodeSettings, source_resolution: (u32, u32)) -> f64 {
+pub fn estimate_compression_ratio(
+    settings: &TranscodeSettings,
+    source_resolution: (u32, u32),
+) -> f64 {
     // デフォルトのメタデータで計算
     let metadata = VideoMetadata {
         resolution: Some(source_resolution),
@@ -395,23 +398,25 @@ fn estimate_from_source_bitrate(
     // 元のコーデックが分かれば比較できるが、ここでは出力コーデックの絶対効率を使用
     // 1080p 30fps CRF23 medium での典型的なビットレート（Mbps）
     let typical_bitrate_mbps = match settings.video_codec {
-        VideoCodec::H264 => 8.0,  // H.264: 約8Mbps
-        VideoCodec::H265 => 4.0,  // H.265: 約4Mbps
-        VideoCodec::Vp9 => 3.6,   // VP9: 約3.6Mbps
-        VideoCodec::Av1 => 2.3,   // AV1: 約2.3Mbps
+        VideoCodec::H264 => 8.0, // H.264: 約8Mbps
+        VideoCodec::H265 => 4.0, // H.265: 約4Mbps
+        VideoCodec::Vp9 => 3.6,  // VP9: 約3.6Mbps
+        VideoCodec::Av1 => 2.3,  // AV1: 約2.3Mbps
     };
 
     // 元のビットレートと典型値の比率から、動画の複雑さを推定
     let source_mbps = source_video_bitrate as f64 / 1_000_000.0;
     // 解像度・フレームレートを正規化した実効ビットレート
-    let normalized_source_mbps = source_mbps * (1920.0 * 1080.0 / source_pixels) * (30.0 / source_fps);
-    
+    let normalized_source_mbps =
+        source_mbps * (1920.0 * 1080.0 / source_pixels) * (30.0 / source_fps);
+
     // 複雑さ係数（元が高ビットレートなら複雑な動画）
     // 典型的な値（10Mbps程度）との比較
     let complexity_factor = (normalized_source_mbps / 10.0).sqrt().clamp(0.5, 2.0);
 
     // === 4. ターゲットビットレートを計算 ===
-    let base_target_mbps = typical_bitrate_mbps * crf_factor * resolution_factor * complexity_factor;
+    let base_target_mbps =
+        typical_bitrate_mbps * crf_factor * resolution_factor * complexity_factor;
 
     // === 5. プリセット係数 ===
     let preset_factor = match settings.preset {
@@ -452,7 +457,8 @@ fn estimate_from_source_bitrate(
     };
 
     // 全体に対する音声の割合
-    let total_source_bitrate = metadata.source_overall_bitrate
+    let total_source_bitrate = metadata
+        .source_overall_bitrate
         .unwrap_or(source_video_bitrate + source_audio_bitrate);
     let audio_portion = source_audio_bitrate as f64 / total_source_bitrate as f64;
     let video_portion = 1.0 - audio_portion;
@@ -530,7 +536,7 @@ fn estimate_from_compression_ratio(
         (HwAccelType::Software, _) => 1.00,
 
         // NVENC
-        (HwAccelType::Nvenc, VideoCodec::Av1) => 1.10,  // NVENC AV1は比較的効率良い
+        (HwAccelType::Nvenc, VideoCodec::Av1) => 1.10, // NVENC AV1は比較的効率良い
         (HwAccelType::Nvenc, _) => 1.30,               // NVENC H.264/H.265は品質落ちる
 
         // QSV
@@ -578,8 +584,13 @@ fn estimate_from_compression_ratio(
 
     // === ビデオ部分の圧縮率計算 ===
     // 基準: H.265 CRF23 medium software で 1080p 30fps 通常実写
-    let video_compression =
-        crf_factor * resolution_factor * fps_factor * motion_factor * codec_efficiency * preset_factor * hwaccel_factor;
+    let video_compression = crf_factor
+        * resolution_factor
+        * fps_factor
+        * motion_factor
+        * codec_efficiency
+        * preset_factor
+        * hwaccel_factor;
 
     // === 最終計算 ===
     if duration_hours > 0.0 && audio_size_mb > 0.0 {
@@ -601,7 +612,9 @@ fn estimate_from_compression_ratio(
             AudioCodec::Flac => audio_ratio * 2.0,
         };
 
-        (video_ratio * video_compression + audio_factor).max(0.03).min(5.0)
+        (video_ratio * video_compression + audio_factor)
+            .max(0.03)
+            .min(5.0)
     } else {
         // 長さ不明の場合は比率ベースで計算
         let audio_ratio = 0.10;
@@ -620,7 +633,9 @@ fn estimate_from_compression_ratio(
             AudioCodec::Flac => audio_ratio * 2.0,
         };
 
-        (video_ratio * video_compression + audio_factor).max(0.03).min(5.0)
+        (video_ratio * video_compression + audio_factor)
+            .max(0.03)
+            .min(5.0)
     }
 }
 

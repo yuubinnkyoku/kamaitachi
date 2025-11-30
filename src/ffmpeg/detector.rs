@@ -67,7 +67,13 @@ impl FfmpegDetector {
                     .unwrap_or_default(),
                 // Scoop
                 dirs::home_dir()
-                    .map(|p| p.join("scoop").join("apps").join("ffmpeg").join("current").join("bin"))
+                    .map(|p| {
+                        p.join("scoop")
+                            .join("apps")
+                            .join("ffmpeg")
+                            .join("current")
+                            .join("bin")
+                    })
                     .unwrap_or_default(),
             ];
 
@@ -159,14 +165,16 @@ impl FfmpegDetector {
         let output_str = String::from_utf8_lossy(output);
 
         // バージョン抽出 (例: "ffmpeg version 7.0.1 Copyright ...")
-        let version_line = output_str
-            .lines()
-            .next()
-            .context("Empty ffmpeg output")?;
+        let version_line = output_str.lines().next().context("Empty ffmpeg output")?;
 
         let version = version_line
             .split_whitespace()
-            .find(|s| s.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false))
+            .find(|s| {
+                s.chars()
+                    .next()
+                    .map(|c| c.is_ascii_digit())
+                    .unwrap_or(false)
+            })
             .unwrap_or("unknown")
             .to_string();
 
@@ -192,9 +200,7 @@ impl FfmpegDetector {
             #[cfg(not(target_os = "windows"))]
             let probe_name = "ffprobe";
 
-            parent
-                .map(|p| p.join(probe_name))
-                .filter(|p| p.exists())
+            parent.map(|p| p.join(probe_name)).filter(|p| p.exists())
         };
 
         Ok(FfmpegInfo {
@@ -237,14 +243,18 @@ pub struct ProbeResult {
 impl FfmpegInfo {
     /// ffprobeで動画のメタデータを取得
     pub fn probe_video(&self, path: &std::path::Path) -> Result<ProbeResult> {
-        let ffprobe_path = self.ffprobe_path.as_ref()
+        let ffprobe_path = self
+            .ffprobe_path
+            .as_ref()
             .ok_or_else(|| anyhow!("ffprobe not found"))?;
 
         // JSON形式で詳細情報を取得
         let output = Command::new(ffprobe_path)
             .args([
-                "-v", "quiet",
-                "-print_format", "json",
+                "-v",
+                "quiet",
+                "-print_format",
+                "json",
                 "-show_format",
                 "-show_streams",
             ])
@@ -253,7 +263,10 @@ impl FfmpegInfo {
             .context("Failed to execute ffprobe")?;
 
         if !output.status.success() {
-            return Err(anyhow!("ffprobe failed: {}", String::from_utf8_lossy(&output.stderr)));
+            return Err(anyhow!(
+                "ffprobe failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
         }
 
         let json_str = String::from_utf8_lossy(&output.stdout);
@@ -301,9 +314,13 @@ impl FfmpegInfo {
                 brace_count -= line.chars().filter(|&c| c == '}').count() as i32;
 
                 // ストリーム1つ分が完了
-                if brace_count == 0 && !current_stream.is_empty() && current_stream.contains("codec_type") {
-                    if current_stream.contains("\"codec_type\": \"video\"") ||
-                       current_stream.contains("\"codec_type\":\"video\"") {
+                if brace_count == 0
+                    && !current_stream.is_empty()
+                    && current_stream.contains("codec_type")
+                {
+                    if current_stream.contains("\"codec_type\": \"video\"")
+                        || current_stream.contains("\"codec_type\":\"video\"")
+                    {
                         // 映像ストリーム
                         if let Some(w) = Self::extract_json_int(&current_stream, "width") {
                             if let Some(h) = Self::extract_json_int(&current_stream, "height") {
@@ -311,31 +328,42 @@ impl FfmpegInfo {
                             }
                         }
 
-                        if let Some(bitrate) = Self::extract_json_string_number(&current_stream, "bit_rate") {
+                        if let Some(bitrate) =
+                            Self::extract_json_string_number(&current_stream, "bit_rate")
+                        {
                             result.video_bitrate = Some(bitrate);
                         }
 
                         // フレームレート (r_frame_rate: "30/1" or "30000/1001")
-                        if let Some(fps_str) = Self::extract_json_string(&current_stream, "r_frame_rate") {
+                        if let Some(fps_str) =
+                            Self::extract_json_string(&current_stream, "r_frame_rate")
+                        {
                             if let Some(fps) = Self::parse_frame_rate(&fps_str) {
                                 result.fps = Some(fps);
                             }
                         }
 
-                        if let Some(codec) = Self::extract_json_string(&current_stream, "codec_name") {
+                        if let Some(codec) =
+                            Self::extract_json_string(&current_stream, "codec_name")
+                        {
                             result.video_codec = Some(codec);
                         }
-                    } else if current_stream.contains("\"codec_type\": \"audio\"") ||
-                              current_stream.contains("\"codec_type\":\"audio\"") {
+                    } else if current_stream.contains("\"codec_type\": \"audio\"")
+                        || current_stream.contains("\"codec_type\":\"audio\"")
+                    {
                         // 音声ストリーム
                         if result.audio_bitrate.is_none() {
-                            if let Some(bitrate) = Self::extract_json_string_number(&current_stream, "bit_rate") {
+                            if let Some(bitrate) =
+                                Self::extract_json_string_number(&current_stream, "bit_rate")
+                            {
                                 result.audio_bitrate = Some(bitrate);
                             }
                         }
 
                         if result.audio_codec.is_none() {
-                            if let Some(codec) = Self::extract_json_string(&current_stream, "codec_name") {
+                            if let Some(codec) =
+                                Self::extract_json_string(&current_stream, "codec_name")
+                            {
                                 result.audio_codec = Some(codec);
                             }
                         }
@@ -367,7 +395,9 @@ impl FfmpegInfo {
         if let Some(pos) = json.find(&pattern) {
             let start = pos + pattern.len();
             let rest = json[start..].trim_start();
-            let end = rest.find(|c: char| !c.is_ascii_digit() && c != '.' && c != '-').unwrap_or(rest.len());
+            let end = rest
+                .find(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
+                .unwrap_or(rest.len());
             rest[..end].parse().ok()
         } else {
             None
@@ -380,7 +410,9 @@ impl FfmpegInfo {
         if let Some(pos) = json.find(&pattern) {
             let start = pos + pattern.len();
             let rest = json[start..].trim_start();
-            let end = rest.find(|c: char| !c.is_ascii_digit() && c != '-').unwrap_or(rest.len());
+            let end = rest
+                .find(|c: char| !c.is_ascii_digit() && c != '-')
+                .unwrap_or(rest.len());
             rest[..end].parse().ok()
         } else {
             None
