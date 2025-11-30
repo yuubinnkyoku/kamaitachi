@@ -231,6 +231,130 @@ pub fn format_size(bytes: u64) -> String {
     }
 }
 
+/// FFmpegの進捗出力をパース
+/// FFmpegは stderr に以下のような形式で出力する:
+/// frame=  123 fps= 30 q=28.0 size=    1234kB time=00:00:05.12 bitrate=1234.5kbits/s speed=1.23x
+#[derive(Clone, Debug, Default)]
+pub struct FfmpegProgressInfo {
+    /// 処理済みフレーム数
+    pub frame: u64,
+    /// FPS
+    pub fps: f32,
+    /// 現在のサイズ（バイト）
+    pub size: u64,
+    /// 現在の時間位置（秒）
+    pub time_secs: f64,
+    /// ビットレート（kbits/s）
+    pub bitrate: f32,
+    /// 速度（倍速）
+    pub speed: f32,
+}
+
+impl FfmpegProgressInfo {
+    /// FFmpegのstderr出力行をパース
+    pub fn parse_line(line: &str) -> Option<Self> {
+        // frame= で始まる行のみをパース
+        if !line.contains("frame=") || !line.contains("time=") {
+            return None;
+        }
+
+        let mut info = FfmpegProgressInfo::default();
+
+        // frame= の値を抽出
+        if let Some(frame_str) = Self::extract_value(line, "frame=") {
+            info.frame = frame_str.trim().parse().unwrap_or(0);
+        }
+
+        // fps= の値を抽出
+        if let Some(fps_str) = Self::extract_value(line, "fps=") {
+            info.fps = fps_str.trim().parse().unwrap_or(0.0);
+        }
+
+        // size= の値を抽出（kB単位）
+        if let Some(size_str) = Self::extract_value(line, "size=") {
+            let size_str = size_str.trim().replace("kB", "").replace("KB", "");
+            let size_kb: f64 = size_str.trim().parse().unwrap_or(0.0);
+            info.size = (size_kb * 1024.0) as u64;
+        }
+
+        // time= の値を抽出 (HH:MM:SS.ms 形式)
+        if let Some(time_str) = Self::extract_value(line, "time=") {
+            info.time_secs = Self::parse_time(time_str.trim());
+        }
+
+        // bitrate= の値を抽出
+        if let Some(bitrate_str) = Self::extract_value(line, "bitrate=") {
+            let bitrate_str = bitrate_str.trim().replace("kbits/s", "");
+            info.bitrate = bitrate_str.trim().parse().unwrap_or(0.0);
+        }
+
+        // speed= の値を抽出
+        if let Some(speed_str) = Self::extract_value(line, "speed=") {
+            let speed_str = speed_str.trim().replace("x", "");
+            info.speed = speed_str.trim().parse().unwrap_or(0.0);
+        }
+
+        // 有効なデータがあるかチェック
+        if info.frame > 0 || info.time_secs > 0.0 {
+            Some(info)
+        } else {
+            None
+        }
+    }
+
+    /// key= の後の値を抽出（次のスペースで区切られたkey=まで）
+    fn extract_value(line: &str, key: &str) -> Option<String> {
+        let start = line.find(key)?;
+        let value_start = start + key.len();
+        let rest = &line[value_start..];
+        
+        // 次の key= パターンを探す（スペースの後にアルファベットが来て=が続く）
+        let mut end = rest.len();
+        let chars: Vec<char> = rest.chars().collect();
+        for i in 0..chars.len() {
+            if chars[i] == ' ' {
+                // スペースの後を確認
+                let after_space = &rest[i..].trim_start();
+                if after_space.contains('=') {
+                    // 次の=までの文字がすべてアルファベットなら、それが次のkey
+                    if let Some(eq_pos) = after_space.find('=') {
+                        let potential_key = &after_space[..eq_pos];
+                        if !potential_key.is_empty() && potential_key.chars().all(|c| c.is_alphabetic()) {
+                            end = i;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        
+        Some(rest[..end].trim().to_string())
+    }
+
+    /// HH:MM:SS.ms 形式の時間をパース
+    fn parse_time(time_str: &str) -> f64 {
+        let parts: Vec<&str> = time_str.split(':').collect();
+        if parts.len() != 3 {
+            return 0.0;
+        }
+
+        let hours: f64 = parts[0].parse().unwrap_or(0.0);
+        let minutes: f64 = parts[1].parse().unwrap_or(0.0);
+        let seconds: f64 = parts[2].parse().unwrap_or(0.0);
+
+        hours * 3600.0 + minutes * 60.0 + seconds
+    }
+
+    /// 総時間から進捗率を計算
+    pub fn calculate_progress(&self, total_duration_secs: f64) -> f32 {
+        if total_duration_secs > 0.0 {
+            (self.time_secs / total_duration_secs).min(1.0) as f32
+        } else {
+            0.0
+        }
+    }
+}
+
 use super::preset::{AudioCodec, TranscodeSettings, VideoCodec, VideoPreset, VideoResolution};
 use super::HwAccelType;
 

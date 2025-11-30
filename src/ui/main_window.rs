@@ -129,9 +129,11 @@ impl MainWindow {
     /// トランスコード開始
     fn start_transcode(&mut self, cx: &mut Context<Self>) {
         use crate::app::FileStatus;
-        use crate::transcoder::{FfmpegError, HwAccelDetector, TranscodeJob};
+        use crate::transcoder::{FfmpegError, FfmpegProgressInfo, HwAccelDetector, TranscodeJob};
         use log::{error, info};
+        use std::io::{BufRead, BufReader};
         use std::process::{Command, Stdio};
+        use std::time::Instant;
 
         // FFmpegパスを取得
         let ffmpeg_path = match self.app_state.ffmpeg_path.read(cx).clone() {
@@ -163,11 +165,17 @@ impl MainWindow {
 
         let app_state = self.app_state.clone();
 
+        // 進捗をリセット
+        app_state.current_progress.reset();
+
         info!("Starting transcode for {} files", files.len());
 
         // 非同期でトランスコード処理を実行
         cx.spawn(async move |this, cx| {
             for (index, file) in files.iter().enumerate() {
+                // 進捗をリセット
+                app_state.current_progress.reset();
+
                 // ファイルの状態を「処理中」に更新
                 cx.update(|cx| {
                     app_state.files.update(cx, |files, _| {
@@ -179,6 +187,10 @@ impl MainWindow {
                 })
                 .ok();
                 this.update(cx, |_, cx| cx.notify()).ok();
+
+                // 動画の長さを取得（進捗計算用）
+                let total_duration_secs = file.metadata.duration.unwrap_or(0.0);
+                info!("Total duration for {}: {:.2}s", file.name, total_duration_secs);
 
                 // 出力パスを決定
                 let out_dir = output_dir.clone().unwrap_or_else(|| {
@@ -214,14 +226,69 @@ impl MainWindow {
                 let args = job.build_ffmpeg_args();
                 info!("Running FFmpeg: {:?} {:?}", ffmpeg_path, args);
 
-                // FFmpegプロセスを別スレッドで実行（GPUIはTokioランタイムを使用しないため）
+                // 進捗更新用のクロージャ
+                let current_progress = app_state.current_progress.clone();
+                let start_time = Instant::now();
+                
+                // 総時間を設定
+                current_progress.set_total_duration_secs(total_duration_secs);
+
+                // FFmpegプロセスを実行（stderrをリアルタイムで読み取る）
                 let ffmpeg_path_clone = ffmpeg_path.clone();
+
                 let result = smol::unblock(move || {
-                    Command::new(&ffmpeg_path_clone)
+                    let mut child = Command::new(&ffmpeg_path_clone)
                         .args(&args)
                         .stdout(Stdio::piped())
                         .stderr(Stdio::piped())
-                        .output()
+                        .spawn()?;
+
+                    // stderrを読み取って進捗を更新
+                    if let Some(stderr) = child.stderr.take() {
+                        let reader = BufReader::new(stderr);
+                        let mut buffer = String::new();
+
+                        // 1文字ずつ読み取る（FFmpegは\rで行を更新するため）
+                        use std::io::Read;
+                        let mut stderr_bytes = reader.bytes();
+
+                        while let Some(Ok(byte)) = stderr_bytes.next() {
+                            if byte == b'\r' || byte == b'\n' {
+                                // 行が完成したらパース
+                                if let Some(progress_info) = FfmpegProgressInfo::parse_line(&buffer)
+                                {
+                                    // time_secsベースで進捗を更新
+                                    current_progress.update_progress_from_time(progress_info.time_secs);
+                                    let progress = current_progress.get_progress();
+                                    
+                                    current_progress
+                                        .set_elapsed_secs(start_time.elapsed().as_secs_f32());
+                                    current_progress.set_fps(progress_info.fps);
+
+                                    // 残り時間を計算
+                                    if progress > 0.01 {
+                                        let elapsed = start_time.elapsed().as_secs_f32();
+                                        let total_estimated = elapsed / progress;
+                                        let remaining = (total_estimated - elapsed).max(0.0);
+                                        current_progress.set_remaining_secs(Some(remaining));
+                                    }
+
+                                    log::debug!(
+                                        "Progress: frame={}, time={:.2}s, total={:.2}s, progress={:.1}%",
+                                        progress_info.frame,
+                                        progress_info.time_secs,
+                                        current_progress.get_total_duration_secs(),
+                                        progress * 100.0
+                                    );
+                                }
+                                buffer.clear();
+                            } else {
+                                buffer.push(byte as char);
+                            }
+                        }
+                    }
+
+                    child.wait_with_output()
                 })
                 .await;
 
@@ -234,11 +301,11 @@ impl MainWindow {
                             // FFmpegエラーを解析してユーザーフレンドリーなメッセージを生成
                             let stderr = String::from_utf8_lossy(&output.stderr);
                             let parsed_error = FfmpegError::parse(&stderr);
-                            
+
                             // ログには詳細を出力
                             error!("Transcode failed: {}", stderr);
                             error!("Parsed error: {:?}", parsed_error.kind);
-                            
+
                             // ユーザーには分かりやすいメッセージを表示
                             FileStatus::Error(parsed_error.format_user_message())
                         };
@@ -280,6 +347,36 @@ impl MainWindow {
             this.update(cx, |_, cx| cx.notify()).ok();
 
             info!("All transcoding completed");
+        })
+        .detach();
+
+        // 進捗表示を定期的に更新するタイマーを開始
+        self.start_progress_timer(cx);
+    }
+
+    /// 進捗更新タイマーを開始
+    fn start_progress_timer(&mut self, cx: &mut Context<Self>) {
+        use std::time::Duration;
+
+        let app_state = self.app_state.clone();
+
+        cx.spawn(async move |this, cx| {
+            loop {
+                // 100msごとに更新
+                smol::Timer::after(Duration::from_millis(100)).await;
+
+                // ジョブが実行中かチェック
+                let has_job = cx
+                    .update(|cx| app_state.current_job.read(cx).is_some())
+                    .unwrap_or(false);
+
+                if !has_job {
+                    break;
+                }
+
+                // UIを更新
+                this.update(cx, |_, cx| cx.notify()).ok();
+            }
         })
         .detach();
     }

@@ -3,6 +3,8 @@
 use gpui::*;
 
 use crate::app::AppState;
+use crate::transcoder::format_duration;
+use std::time::Duration;
 
 /// 進捗ビュー
 pub struct ProgressView {
@@ -27,6 +29,25 @@ impl Render for ProgressView {
 
         match current_job.as_ref() {
             Some(job) => {
+                // 進捗情報を取得
+                let progress = self.app_state.current_progress.get_progress();
+                let elapsed_secs = self.app_state.current_progress.get_elapsed_secs();
+                let remaining_secs = self.app_state.current_progress.get_remaining_secs();
+                let fps = self.app_state.current_progress.get_fps();
+                
+                // 表示用の文字列を作成
+                let progress_percent = (progress * 100.0) as u32;
+                let elapsed_str = format_duration(Duration::from_secs_f32(elapsed_secs));
+                let remaining_str = remaining_secs
+                    .map(|s| format_duration(Duration::from_secs_f32(s)))
+                    .unwrap_or_else(|| "--:--".to_string());
+                
+                let status_text = if fps > 0.0 {
+                    format!("{}% | {} 経過 | {} 残り | {:.1} fps", progress_percent, elapsed_str, remaining_str, fps)
+                } else {
+                    format!("{}% | {} 経過 | {} 残り", progress_percent, elapsed_str, remaining_str)
+                };
+
                 // ジョブ実行中の進捗表示
                 div()
                     .w_full()
@@ -61,7 +82,7 @@ impl Render for ProgressView {
                                         div()
                                             .text_sm()
                                             .text_color(rgb(0x6c7086))
-                                            .child("0% | 0:00 経過 | -- 残り"),
+                                            .child(status_text),
                                     ),
                             )
                             .child(
@@ -75,7 +96,7 @@ impl Render for ProgressView {
                                             .h_full()
                                             .rounded(px(2.0))
                                             .bg(rgb(0x89b4fa))
-                                            .w(relative(0.0)),
+                                            .w(relative(progress)),
                                     ),
                             ),
                     )

@@ -14,5 +14,5 @@ pub use preset::{
 };
 pub use progress::{
     estimate_compression_ratio, estimate_compression_ratio_advanced, format_duration, format_size,
-    ContentType, TranscodeProgress, VideoMetadata,
+    ContentType, FfmpegProgressInfo, TranscodeProgress, VideoMetadata,
 };
