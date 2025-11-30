@@ -157,17 +157,20 @@ impl TranscodeJob {
         }
 
         // VP9 (libvpx-vp9) は特別な処理が必要
+        // 注: NVENCとAMFは一部のGPUでVP9をサポートしているが、
+        // 互換性を優先してlibvpx-vp9にフォールバックする
         if self.settings.video_codec == VideoCodec::Vp9
             && (self.settings.hwaccel == HwAccelType::Software
                 || self.settings.hwaccel == HwAccelType::Auto
-                || self.settings.hwaccel == HwAccelType::Nvenc  // NVENCはVP9非対応なのでlibvpx-vp9
-                || self.settings.hwaccel == HwAccelType::Amf)   // AMFはVP9非対応なのでlibvpx-vp9
+                || self.settings.hwaccel == HwAccelType::Nvenc  // libvpx-vp9にフォールバック
+                || self.settings.hwaccel == HwAccelType::Amf)   // libvpx-vp9にフォールバック
         {
             // VP9では -b:v 0 + -crf でCRFモードを使用
             args.push("-b:v".to_string());
             args.push("0".to_string());
             args.push("-crf".to_string());
-            // VP9のCRF範囲は0-63、H.264/H.265と同じ値をそのまま使用
+            // VP9のCRF範囲は0-63（推奨: 15-35）
+            // H.264/H.265とは品質感が異なるが、UIの統一性を優先
             args.push(self.settings.crf.to_string());
 
             // VP9は -cpu-used オプションを使用（0-8、値が大きいほど高速）
