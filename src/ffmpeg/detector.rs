@@ -284,9 +284,12 @@ impl FfmpegInfo {
         if let Some(format_start) = json_str.find("\"format\"") {
             let format_section = &json_str[format_start..];
 
-            // duration
+            // duration (文字列として出力される場合があるので両方試す)
             if let Some(duration) = Self::extract_json_number(format_section, "duration") {
                 result.duration = Some(duration);
+            } else if let Some(duration_str) = Self::extract_json_string(format_section, "duration")
+            {
+                result.duration = duration_str.parse().ok();
             }
 
             // bit_rate (全体)
