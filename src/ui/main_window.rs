@@ -1,0 +1,299 @@
+//! メインウィンドウ
+
+use gpui::*;
+use gpui_component::button::{Button, ButtonVariant};
+use gpui_component::Icon;
+
+use crate::app::AppState;
+use super::{FileList, SettingsPanel, ProgressView, AboutDialog};
+
+/// メインウィンドウ
+pub struct MainWindow {
+    /// アプリケーション状態
+    app_state: AppState,
+    /// ファイルリスト
+    file_list: View<FileList>,
+    /// 設定パネル
+    settings_panel: View<SettingsPanel>,
+    /// 進捗ビュー
+    progress_view: View<ProgressView>,
+    /// Aboutダイアログ表示フラグ
+    show_about: bool,
+}
+
+impl MainWindow {
+    pub fn new(app_state: AppState, cx: &mut ViewContext<Self>) -> Self {
+        let file_list = cx.new_view(|cx| FileList::new(app_state.clone(), cx));
+        let settings_panel = cx.new_view(|cx| SettingsPanel::new(app_state.clone(), cx));
+        let progress_view = cx.new_view(|cx| ProgressView::new(app_state.clone(), cx));
+
+        // FFmpegを検出
+        Self::detect_ffmpeg(&app_state, cx);
+
+        Self {
+            app_state,
+            file_list,
+            settings_panel,
+            progress_view,
+            show_about: false,
+        }
+    }
+
+    /// FFmpegを検出
+    fn detect_ffmpeg(app_state: &AppState, cx: &mut ViewContext<Self>) {
+        use crate::ffmpeg::{FfmpegDetector, FfmpegDownloader};
+        use log::{info, warn};
+
+        // 既存のFFmpegを検出
+        match FfmpegDetector::detect() {
+            Ok(info) => {
+                if FfmpegDetector::check_version_requirement(&info, 7) {
+                    info!("Found FFmpeg {} at {:?}", info.version, info.ffmpeg_path);
+                    app_state.ffmpeg_path.update(cx, |path, _| {
+                        *path = Some(info.ffmpeg_path);
+                    });
+                } else {
+                    warn!(
+                        "FFmpeg {} found but version 7.0+ required",
+                        info.version
+                    );
+                    // TODO: ダウンロードを促すダイアログを表示
+                }
+            }
+            Err(e) => {
+                warn!("FFmpeg not found: {}", e);
+                // ダウンロード済みをチェック
+                if let Ok(Some(path)) = FfmpegDownloader::is_downloaded() {
+                    info!("Found downloaded FFmpeg at {:?}", path);
+                    app_state.ffmpeg_path.update(cx, |ffmpeg_path, _| {
+                        *ffmpeg_path = Some(path);
+                    });
+                } else {
+                    // TODO: ダウンロードダイアログを表示
+                    warn!("No FFmpeg available, download required");
+                }
+            }
+        }
+    }
+
+    /// ファイル追加ダイアログを開く
+    fn open_file_dialog(&mut self, cx: &mut ViewContext<Self>) {
+        let app_state = self.app_state.clone();
+
+        cx.spawn(|this, mut cx| async move {
+            let files = rfd::AsyncFileDialog::new()
+                .add_filter("Video files", &["mp4", "mkv", "avi", "mov", "webm", "flv", "wmv", "m4v", "ts"])
+                .set_title("ファイルを選択")
+                .pick_files()
+                .await;
+
+            if let Some(files) = files {
+                let paths: Vec<_> = files.into_iter().map(|f| f.path().to_path_buf()).collect();
+                cx.update(|cx| {
+                    app_state.add_files(paths, cx);
+                }).ok();
+                this.update(&mut cx, |_, cx| cx.notify()).ok();
+            }
+        })
+        .detach();
+    }
+
+    /// 出力フォルダを選択
+    fn select_output_folder(&mut self, cx: &mut ViewContext<Self>) {
+        let app_state = self.app_state.clone();
+
+        cx.spawn(|this, mut cx| async move {
+            let folder = rfd::AsyncFileDialog::new()
+                .set_title("出力フォルダを選択")
+                .pick_folder()
+                .await;
+
+            if let Some(folder) = folder {
+                let path = folder.path().to_path_buf();
+                cx.update(|cx| {
+                    app_state.transcode_settings.update(cx, |settings, _| {
+                        settings.output_dir = Some(path);
+                    });
+                }).ok();
+                this.update(&mut cx, |_, cx| cx.notify()).ok();
+            }
+        })
+        .detach();
+    }
+
+    /// トランスコード開始
+    fn start_transcode(&mut self, cx: &mut ViewContext<Self>) {
+        // TODO: 実装
+        log::info!("Start transcode");
+    }
+
+    /// キューをクリア
+    fn clear_queue(&mut self, cx: &mut ViewContext<Self>) {
+        self.app_state.clear_files(cx);
+        cx.notify();
+    }
+
+    /// Aboutダイアログを表示
+    fn show_about(&mut self, cx: &mut ViewContext<Self>) {
+        self.show_about = true;
+        cx.notify();
+    }
+
+    /// Aboutダイアログを閉じる
+    fn hide_about(&mut self, cx: &mut ViewContext<Self>) {
+        self.show_about = false;
+        cx.notify();
+    }
+}
+
+impl Render for MainWindow {
+    fn render(&mut self, cx: &mut ViewContext<Self>) -> impl IntoElement {
+        let has_files = self.app_state.files.read(cx).len() > 0;
+
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .bg(rgb(0x1e1e2e))
+            .text_color(rgb(0xcdd6f4))
+            // ツールバー
+            .child(
+                div()
+                    .w_full()
+                    .h(px(56.0))
+                    .px(px(16.0))
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .bg(rgb(0x181825))
+                    .border_b_1()
+                    .border_color(rgb(0x313244))
+                    // 左側: ファイル操作ボタン
+                    .child(
+                        div()
+                            .flex()
+                            .gap(px(8.0))
+                            .child(
+                                Button::new("add-files")
+                                    .label("ファイル追加")
+                                    .variant(ButtonVariant::Primary)
+                                    .on_click(cx.listener(|this, _, cx| {
+                                        this.open_file_dialog(cx);
+                                    }))
+                            )
+                            .child(
+                                Button::new("clear-queue")
+                                    .label("クリア")
+                                    .variant(ButtonVariant::Ghost)
+                                    .disabled(!has_files)
+                                    .on_click(cx.listener(|this, _, cx| {
+                                        this.clear_queue(cx);
+                                    }))
+                            )
+                    )
+                    // 中央: タイトル
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(8.0))
+                            .child(
+                                div()
+                                    .text_xl()
+                                    .font_weight(FontWeight::BOLD)
+                                    .child("kamaitachi")
+                            )
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .text_color(rgb(0x6c7086))
+                                    .child("鎌鼬")
+                            )
+                    )
+                    // 右側: 開始・About
+                    .child(
+                        div()
+                            .flex()
+                            .gap(px(8.0))
+                            .child(
+                                Button::new("start")
+                                    .label("変換開始")
+                                    .variant(ButtonVariant::Primary)
+                                    .disabled(!has_files)
+                                    .on_click(cx.listener(|this, _, cx| {
+                                        this.start_transcode(cx);
+                                    }))
+                            )
+                            .child(
+                                Button::new("about")
+                                    .label("About")
+                                    .variant(ButtonVariant::Ghost)
+                                    .on_click(cx.listener(|this, _, cx| {
+                                        this.show_about(cx);
+                                    }))
+                            )
+                    )
+            )
+            // メインコンテンツ
+            .child(
+                div()
+                    .flex_1()
+                    .w_full()
+                    .flex()
+                    .overflow_hidden()
+                    // 左側: ファイルリスト
+                    .child(
+                        div()
+                            .flex_1()
+                            .h_full()
+                            .flex()
+                            .flex_col()
+                            .border_r_1()
+                            .border_color(rgb(0x313244))
+                            .child(self.file_list.clone())
+                    )
+                    // 右側: 設定パネル
+                    .child(
+                        div()
+                            .w(px(360.0))
+                            .h_full()
+                            .flex()
+                            .flex_col()
+                            .child(self.settings_panel.clone())
+                    )
+            )
+            // ステータスバー / 進捗
+            .child(
+                div()
+                    .w_full()
+                    .border_t_1()
+                    .border_color(rgb(0x313244))
+                    .child(self.progress_view.clone())
+            )
+            // Aboutダイアログ（モーダル）
+            .when(self.show_about, |this| {
+                this.child(
+                    div()
+                        .absolute()
+                        .inset_0()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .bg(rgba(0x00000080))
+                        .on_mouse_down(MouseButton::Left, cx.listener(|this, _, cx| {
+                            this.hide_about(cx);
+                        }))
+                        .child(
+                            div()
+                                .on_mouse_down(MouseButton::Left, |ev, cx| {
+                                    // ダイアログ内のクリックは伝播させない
+                                    cx.stop_propagation();
+                                })
+                                .child(AboutDialog::render_content(cx.listener(|this, _, cx| {
+                                    this.hide_about(cx);
+                                })))
+                        )
+                )
+            })
+    }
+}
