@@ -129,7 +129,7 @@ impl MainWindow {
     /// トランスコード開始
     fn start_transcode(&mut self, cx: &mut Context<Self>) {
         use crate::app::FileStatus;
-        use crate::transcoder::{HwAccelDetector, TranscodeJob};
+        use crate::transcoder::{FfmpegError, HwAccelDetector, TranscodeJob};
         use log::{error, info};
         use std::process::{Command, Stdio};
 
@@ -231,13 +231,16 @@ impl MainWindow {
                             info!("Transcode completed: {:?}", output_path);
                             FileStatus::Completed
                         } else {
-                            let error_msg = if !output.stderr.is_empty() {
-                                String::from_utf8_lossy(&output.stderr).to_string()
-                            } else {
-                                format!("Exit code: {:?}", output.status.code())
-                            };
-                            error!("Transcode failed: {}", error_msg);
-                            FileStatus::Error(error_msg)
+                            // FFmpegエラーを解析してユーザーフレンドリーなメッセージを生成
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            let parsed_error = FfmpegError::parse(&stderr);
+                            
+                            // ログには詳細を出力
+                            error!("Transcode failed: {}", stderr);
+                            error!("Parsed error: {:?}", parsed_error.kind);
+                            
+                            // ユーザーには分かりやすいメッセージを表示
+                            FileStatus::Error(parsed_error.format_user_message())
                         };
 
                         // ファイルの状態を更新

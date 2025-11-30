@@ -1,10 +1,12 @@
 //! トランスコーダーモジュール
 
+mod error;
 mod hwaccel;
 mod job;
 mod preset;
 pub mod progress;
 
+pub use error::{FfmpegError, FfmpegErrorKind};
 pub use hwaccel::{HwAccelDetector, HwAccelType};
 pub use job::TranscodeJob;
 pub use preset::{

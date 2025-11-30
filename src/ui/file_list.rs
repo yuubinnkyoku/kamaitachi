@@ -162,13 +162,32 @@ impl FileList {
         let is_processing = file.status == FileStatus::Processing;
         let progress = file.progress;
 
+        // エラーメッセージを取得
+        let error_message = match &file.status {
+            FileStatus::Error(msg) => Some(msg.clone()),
+            _ => None,
+        };
+        let has_error = error_message.is_some();
+        // エラーメッセージの行数に応じて高さを調整
+        let error_height = if let Some(ref msg) = error_message {
+            // 提案が含まれている場合（💡があるか、改行が多い場合）は高さを増やす
+            let line_count = msg.lines().count().max(1);
+            if line_count > 2 {
+                px(48.0 + 20.0 * line_count as f32)
+            } else {
+                px(96.0)
+            }
+        } else {
+            px(48.0)
+        };
+
         div()
             .w_full()
-            .h(px(48.0))
+            .h(error_height)
             .px(px(16.0))
             .flex()
-            .items_center()
-            .gap(px(12.0))
+            .flex_col()
+            .relative()
             .bg(if is_selected {
                 rgb(0x313244)
             } else {
@@ -183,71 +202,96 @@ impl FileList {
                     cx.notify();
                 }),
             )
-            // ステータスインジケーター
-            .child(div().w(px(8.0)).h(px(8.0)).rounded_full().bg(status_color))
-            // ファイル情報
+            // メイン行
             .child(
                 div()
-                    .flex_1()
+                    .w_full()
+                    .h(px(48.0))
                     .flex()
-                    .flex_col()
-                    .gap(px(2.0))
-                    .overflow_hidden()
+                    .items_center()
+                    .gap(px(12.0))
+                    // ステータスインジケーター
+                    .child(div().w(px(8.0)).h(px(8.0)).rounded_full().bg(status_color))
+                    // ファイル情報
                     .child(
                         div()
-                            .text_sm()
-                            .font_weight(FontWeight::MEDIUM)
-                            .truncate()
-                            .child(file_name),
+                            .flex_1()
+                            .flex()
+                            .flex_col()
+                            .gap(px(2.0))
+                            .overflow_hidden()
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .truncate()
+                                    .child(file_name),
+                            )
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(rgb(0x6c7086))
+                                    .truncate()
+                                    .child(file_path),
+                            ),
                     )
+                    // サイズ（元サイズ → 予測サイズ）
                     .child(
                         div()
-                            .text_xs()
-                            .text_color(rgb(0x6c7086))
-                            .truncate()
-                            .child(file_path),
-                    ),
-            )
-            // サイズ（元サイズ → 予測サイズ）
-            .child(
-                div()
-                    .w(px(140.0))
-                    .flex()
-                    .flex_col()
-                    .gap(px(1.0))
-                    .child(div().text_sm().text_color(rgb(0x6c7086)).child(file_size))
-                    .when_some(estimated_size, |this, est| {
+                            .w(px(140.0))
+                            .flex()
+                            .flex_col()
+                            .gap(px(1.0))
+                            .child(div().text_sm().text_color(rgb(0x6c7086)).child(file_size))
+                            .when_some(estimated_size, |this, est| {
+                                this.child(
+                                    div()
+                                        .text_xs()
+                                        .text_color(rgb(0xa6e3a1))
+                                        .child(format!("→ {}", est)),
+                                )
+                            }),
+                    )
+                    // ステータス
+                    .child(
+                        div()
+                            .w(px(80.0))
+                            .text_sm()
+                            .text_color(status_color)
+                            .child(status_label),
+                    )
+                    // 進捗バー（処理中のみ表示）
+                    .when(is_processing, |this| {
                         this.child(
                             div()
-                                .text_xs()
-                                .text_color(rgb(0xa6e3a1))
-                                .child(format!("→ {}", est)),
+                                .w(px(100.0))
+                                .h(px(4.0))
+                                .rounded(px(2.0))
+                                .bg(rgb(0x313244))
+                                .child(
+                                    div()
+                                        .h_full()
+                                        .rounded(px(2.0))
+                                        .bg(rgb(0x89b4fa))
+                                        .w(relative(progress)),
+                                ),
                         )
                     }),
             )
-            // ステータス
-            .child(
-                div()
-                    .w(px(80.0))
-                    .text_sm()
-                    .text_color(status_color)
-                    .child(status_label),
-            )
-            // 進捗バー（処理中のみ表示）
-            .when(is_processing, |this| {
+            // エラーメッセージ（エラー時のみ表示）
+            .when_some(error_message, |this, msg| {
                 this.child(
                     div()
-                        .w(px(100.0))
-                        .h(px(4.0))
-                        .rounded(px(2.0))
-                        .bg(rgb(0x313244))
-                        .child(
-                            div()
-                                .h_full()
-                                .rounded(px(2.0))
-                                .bg(rgb(0x89b4fa))
-                                .w(relative(progress)),
-                        ),
+                        .w_full()
+                        .px(px(20.0))
+                        .py(px(6.0))
+                        .bg(rgb(0x302030))
+                        .border_1()
+                        .border_color(rgb(0xf38ba8))
+                        .rounded(px(4.0))
+                        .text_xs()
+                        .text_color(rgb(0xf5c2e7))
+                        .child(msg),
                 )
             })
             .into_any_element()
