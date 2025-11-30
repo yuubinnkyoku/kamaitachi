@@ -1,12 +1,12 @@
 //! メインウィンドウ
 
-use gpui::*;
 use gpui::prelude::FluentBuilder;
+use gpui::*;
 use gpui_component::button::{Button, ButtonVariant, ButtonVariants};
 use gpui_component::Disableable;
 
+use super::{AboutDialog, FileList, ProgressView, SettingsPanel};
 use crate::app::AppState;
-use super::{FileList, SettingsPanel, ProgressView, AboutDialog};
 
 /// メインウィンドウ
 pub struct MainWindow {
@@ -54,10 +54,7 @@ impl MainWindow {
                         *path = Some(info.ffmpeg_path);
                     });
                 } else {
-                    warn!(
-                        "FFmpeg {} found but version 7.0+ required",
-                        info.version
-                    );
+                    warn!("FFmpeg {} found but version 7.0+ required", info.version);
                     // TODO: ダウンロードを促すダイアログを表示
                 }
             }
@@ -83,7 +80,12 @@ impl MainWindow {
 
         cx.spawn(async move |this, cx| {
             let files = rfd::AsyncFileDialog::new()
-                .add_filter("Video files", &["mp4", "mkv", "avi", "mov", "webm", "flv", "wmv", "m4v", "ts"])
+                .add_filter(
+                    "Video files",
+                    &[
+                        "mp4", "mkv", "avi", "mov", "webm", "flv", "wmv", "m4v", "ts",
+                    ],
+                )
                 .set_title("ファイルを選択")
                 .pick_files()
                 .await;
@@ -92,7 +94,8 @@ impl MainWindow {
                 let paths: Vec<_> = files.into_iter().map(|f| f.path().to_path_buf()).collect();
                 cx.update(|cx| {
                     app_state.add_files(paths, cx);
-                }).ok();
+                })
+                .ok();
                 this.update(cx, |_, cx| cx.notify()).ok();
             }
         })
@@ -115,7 +118,8 @@ impl MainWindow {
                     app_state.transcode_settings.update(cx, |settings, _| {
                         settings.output_dir = Some(path);
                     });
-                }).ok();
+                })
+                .ok();
                 this.update(cx, |_, cx| cx.notify()).ok();
             }
         })
@@ -125,9 +129,9 @@ impl MainWindow {
     /// トランスコード開始
     fn start_transcode(&mut self, cx: &mut Context<Self>) {
         use crate::app::FileStatus;
-        use crate::transcoder::{TranscodeJob, HwAccelDetector};
+        use crate::transcoder::{HwAccelDetector, TranscodeJob};
+        use log::{error, info};
         use std::process::{Command, Stdio};
-        use log::{info, error};
 
         // FFmpegパスを取得
         let ffmpeg_path = match self.app_state.ffmpeg_path.read(cx).clone() {
@@ -172,12 +176,16 @@ impl MainWindow {
                             f.progress = 0.0;
                         }
                     });
-                }).ok();
+                })
+                .ok();
                 this.update(cx, |_, cx| cx.notify()).ok();
 
                 // 出力パスを決定
                 let out_dir = output_dir.clone().unwrap_or_else(|| {
-                    file.path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from("."))
+                    file.path
+                        .parent()
+                        .map(|p| p.to_path_buf())
+                        .unwrap_or_else(|| std::path::PathBuf::from("."))
                 });
                 let output_path = TranscodeJob::generate_output_path(
                     &file.path,
@@ -198,7 +206,8 @@ impl MainWindow {
                     app_state.current_job.update(cx, |current, _| {
                         *current = Some(job.clone());
                     });
-                }).ok();
+                })
+                .ok();
                 this.update(cx, |_, cx| cx.notify()).ok();
 
                 // FFmpegコマンドを構築
@@ -213,7 +222,8 @@ impl MainWindow {
                         .stdout(Stdio::piped())
                         .stderr(Stdio::piped())
                         .output()
-                }).await;
+                })
+                .await;
 
                 match result {
                     Ok(output) => {
@@ -238,7 +248,8 @@ impl MainWindow {
                                     f.progress = 1.0;
                                 }
                             });
-                        }).ok();
+                        })
+                        .ok();
                     }
                     Err(e) => {
                         error!("Failed to run FFmpeg: {}", e);
@@ -248,7 +259,8 @@ impl MainWindow {
                                     f.status = FileStatus::Error(e.to_string());
                                 }
                             });
-                        }).ok();
+                        })
+                        .ok();
                     }
                 }
 
@@ -260,7 +272,8 @@ impl MainWindow {
                 app_state.current_job.update(cx, |current, _| {
                     *current = None;
                 });
-            }).ok();
+            })
+            .ok();
             this.update(cx, |_, cx| cx.notify()).ok();
 
             info!("All transcoding completed");
@@ -320,7 +333,7 @@ impl Render for MainWindow {
                                     .with_variant(ButtonVariant::Primary)
                                     .on_click(cx.listener(|this, _, _, cx| {
                                         this.open_file_dialog(cx);
-                                    }))
+                                    })),
                             )
                             .child(
                                 Button::new("clear-queue")
@@ -329,8 +342,8 @@ impl Render for MainWindow {
                                     .disabled(!has_files)
                                     .on_click(cx.listener(|this, _, _, cx| {
                                         this.clear_queue(cx);
-                                    }))
-                            )
+                                    })),
+                            ),
                     )
                     // 中央: タイトル
                     .child(
@@ -342,14 +355,9 @@ impl Render for MainWindow {
                                 div()
                                     .text_xl()
                                     .font_weight(FontWeight::BOLD)
-                                    .child("kamaitachi")
+                                    .child("kamaitachi"),
                             )
-                            .child(
-                                div()
-                                    .text_sm()
-                                    .text_color(rgb(0x6c7086))
-                                    .child("鎌鼬")
-                            )
+                            .child(div().text_sm().text_color(rgb(0x6c7086)).child("鎌鼬")),
                     )
                     // 右側: 開始・About
                     .child(
@@ -363,7 +371,7 @@ impl Render for MainWindow {
                                     .disabled(!has_files)
                                     .on_click(cx.listener(|this, _, _, cx| {
                                         this.start_transcode(cx);
-                                    }))
+                                    })),
                             )
                             .child(
                                 Button::new("about")
@@ -371,9 +379,9 @@ impl Render for MainWindow {
                                     .with_variant(ButtonVariant::Ghost)
                                     .on_click(cx.listener(|this, _, _, cx| {
                                         this.show_about(cx);
-                                    }))
-                            )
-                    )
+                                    })),
+                            ),
+                    ),
             )
             // メインコンテンツ
             .child(
@@ -391,7 +399,7 @@ impl Render for MainWindow {
                             .flex_col()
                             .border_r_1()
                             .border_color(rgb(0x313244))
-                            .child(self.file_list.clone())
+                            .child(self.file_list.clone()),
                     )
                     // 右側: 設定パネル
                     .child(
@@ -400,8 +408,8 @@ impl Render for MainWindow {
                             .h_full()
                             .flex()
                             .flex_col()
-                            .child(self.settings_panel.clone())
-                    )
+                            .child(self.settings_panel.clone()),
+                    ),
             )
             // ステータスバー / 進捗
             .child(
@@ -409,7 +417,7 @@ impl Render for MainWindow {
                     .w_full()
                     .border_t_1()
                     .border_color(rgb(0x313244))
-                    .child(self.progress_view.clone())
+                    .child(self.progress_view.clone()),
             )
             // Aboutダイアログ（モーダル）
             .when(self.show_about, |this| {
@@ -421,19 +429,24 @@ impl Render for MainWindow {
                         .items_center()
                         .justify_center()
                         .bg(rgba(0x00000080))
-                        .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
-                            this.hide_about(cx);
-                        }))
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|this, _, _, cx| {
+                                this.hide_about(cx);
+                            }),
+                        )
                         .child(
                             div()
                                 .on_mouse_down(MouseButton::Left, |_, _, cx| {
                                     // ダイアログ内のクリックは伝播させない
                                     cx.stop_propagation();
                                 })
-                                .child(AboutDialog::render_content(cx.listener(|this, _, _, cx| {
-                                    this.hide_about(cx);
-                                })))
-                        )
+                                .child(AboutDialog::render_content(cx.listener(
+                                    |this, _, _, cx| {
+                                        this.hide_about(cx);
+                                    },
+                                ))),
+                        ),
                 )
             })
     }
