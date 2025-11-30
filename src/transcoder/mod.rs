@@ -7,5 +7,7 @@ mod progress;
 
 pub use hwaccel::{HwAccelDetector, HwAccelType};
 pub use job::TranscodeJob;
-pub use preset::{AudioCodec, ContainerFormat, TranscodeSettings, VideoCodec, VideoPreset, VideoResolution};
-pub use progress::{TranscodeProgress, ProgressFilter};
+pub use preset::{
+    AudioCodec, ContainerFormat, TranscodeSettings, VideoCodec, VideoPreset, VideoResolution,
+};
+pub use progress::{ProgressFilter, TranscodeProgress};

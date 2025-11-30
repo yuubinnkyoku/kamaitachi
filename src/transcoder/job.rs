@@ -131,7 +131,10 @@ impl TranscodeJob {
         use super::{VideoCodec, VideoResolution};
 
         // コーデック
-        let encoder = self.settings.video_codec.encoder_name(&self.settings.hwaccel);
+        let encoder = self
+            .settings
+            .video_codec
+            .encoder_name(&self.settings.hwaccel);
         args.push("-c:v".to_string());
         args.push(encoder.to_string());
 

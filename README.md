@@ -25,9 +25,11 @@ Rust + GPUI で作る最速・最凶 HandBrake 代替トランスコーダー
 ## 対応形式
 
 ### 入力
+
 mp4, mkv, avi, mov, webm, flv, wmv, m4v, ts
 
 ### 出力
+
 - **コンテナ**: MP4 / MKV
 - **ビデオコーデック**: H.264 / H.265 (HEVC) / VP9 / AV1
 - **オーディオコーデック**: AAC / MP3 / FLAC / コピー（無変換）
