@@ -123,9 +123,161 @@ impl MainWindow {
     }
 
     /// トランスコード開始
-    fn start_transcode(&mut self, _cx: &mut Context<Self>) {
-        // TODO: 実装
-        log::info!("Start transcode");
+    fn start_transcode(&mut self, cx: &mut Context<Self>) {
+        use crate::app::FileStatus;
+        use crate::transcoder::{TranscodeJob, HwAccelDetector};
+        use std::process::Stdio;
+        use log::{info, error};
+
+        // FFmpegパスを取得
+        let ffmpeg_path = match self.app_state.ffmpeg_path.read(cx).clone() {
+            Some(path) => path,
+            None => {
+                error!("FFmpeg not available");
+                return;
+            }
+        };
+
+        // ファイルがあるか確認
+        let files = self.app_state.files.read(cx).clone();
+        if files.is_empty() {
+            info!("No files to transcode");
+            return;
+        }
+
+        // 設定を取得
+        let settings = self.app_state.transcode_settings.read(cx).clone();
+
+        // 出力ディレクトリを決定（設定がなければ入力ファイルと同じディレクトリ）
+        let output_dir = settings.output_dir.clone();
+        let output_suffix = settings.output_suffix.clone();
+
+        // HWアクセラレーションを解決
+        let resolved_hwaccel = HwAccelDetector::resolve_auto(settings.hwaccel, Some(&ffmpeg_path));
+        let mut resolved_settings = settings.clone();
+        resolved_settings.hwaccel = resolved_hwaccel;
+
+        let app_state = self.app_state.clone();
+
+        info!("Starting transcode for {} files", files.len());
+
+        // 非同期でトランスコード処理を実行
+        cx.spawn(async move |this, cx| {
+            for (index, file) in files.iter().enumerate() {
+                // ファイルの状態を「処理中」に更新
+                cx.update(|cx| {
+                    app_state.files.update(cx, |files, _| {
+                        if let Some(f) = files.get_mut(index) {
+                            f.status = FileStatus::Processing;
+                            f.progress = 0.0;
+                        }
+                    });
+                }).ok();
+                this.update(cx, |_, cx| cx.notify()).ok();
+
+                // 出力パスを決定
+                let out_dir = output_dir.clone().unwrap_or_else(|| {
+                    file.path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from("."))
+                });
+                let output_path = TranscodeJob::generate_output_path(
+                    &file.path,
+                    &out_dir,
+                    &output_suffix,
+                    &resolved_settings,
+                );
+
+                // ジョブを作成
+                let job = TranscodeJob::new(
+                    file.path.clone(),
+                    output_path.clone(),
+                    resolved_settings.clone(),
+                );
+
+                // 現在のジョブを設定
+                cx.update(|cx| {
+                    app_state.current_job.update(cx, |current, _| {
+                        *current = Some(job.clone());
+                    });
+                }).ok();
+                this.update(cx, |_, cx| cx.notify()).ok();
+
+                // FFmpegコマンドを構築
+                let args = job.build_ffmpeg_args();
+                info!("Running FFmpeg: {:?} {:?}", ffmpeg_path, args);
+
+                // FFmpegプロセスを起動
+                let result = tokio::process::Command::new(&ffmpeg_path)
+                    .args(&args)
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn();
+
+                match result {
+                    Ok(child) => {
+                        // プロセスの完了を待機し、出力を取得
+                        match child.wait_with_output().await {
+                            Ok(output) => {
+                                let final_status = if output.status.success() {
+                                    info!("Transcode completed: {:?}", output_path);
+                                    FileStatus::Completed
+                                } else {
+                                    let error_msg = if !output.stderr.is_empty() {
+                                        String::from_utf8_lossy(&output.stderr).to_string()
+                                    } else {
+                                        format!("Exit code: {:?}", output.status.code())
+                                    };
+                                    error!("Transcode failed: {}", error_msg);
+                                    FileStatus::Error(error_msg)
+                                };
+
+                                // ファイルの状態を更新
+                                cx.update(|cx| {
+                                    app_state.files.update(cx, |files, _| {
+                                        if let Some(f) = files.get_mut(index) {
+                                            f.status = final_status;
+                                            f.progress = 1.0;
+                                        }
+                                    });
+                                }).ok();
+                            }
+                            Err(e) => {
+                                error!("Failed to wait for FFmpeg: {}", e);
+                                cx.update(|cx| {
+                                    app_state.files.update(cx, |files, _| {
+                                        if let Some(f) = files.get_mut(index) {
+                                            f.status = FileStatus::Error(e.to_string());
+                                        }
+                                    });
+                                }).ok();
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to spawn FFmpeg: {}", e);
+                        cx.update(|cx| {
+                            app_state.files.update(cx, |files, _| {
+                                if let Some(f) = files.get_mut(index) {
+                                    f.status = FileStatus::Error(e.to_string());
+                                }
+                            });
+                        }).ok();
+                    }
+                }
+
+                this.update(cx, |_, cx| cx.notify()).ok();
+            }
+
+            // 完了後、現在のジョブをクリア
+            cx.update(|cx| {
+                app_state.current_job.update(cx, |current, _| {
+                    *current = None;
+                });
+            }).ok();
+            this.update(cx, |_, cx| cx.notify()).ok();
+
+            info!("All transcoding completed");
+        })
+        .detach();
     }
 
     /// キューをクリア
