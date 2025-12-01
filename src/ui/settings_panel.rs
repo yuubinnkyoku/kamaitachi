@@ -6,7 +6,9 @@ use gpui_component::button::{Button, ButtonVariant, ButtonVariants};
 
 use crate::app::AppState;
 use crate::transcoder::{
-    AudioCodec, ContainerFormat, HwAccelType, VideoCodec, VideoPreset, VideoResolution,
+    AmfQuality, AmfUsage, AqMode, AudioCodec, ContainerFormat, HwAccelType, NvencBRefMode,
+    NvencMultipass, NvencTune, RateControlMode, VideoCodec, VideoPreset, VideoResolution,
+    X264Profile, X264Tune,
 };
 
 /// 設定パネル
@@ -573,6 +575,164 @@ impl SettingsPanel {
                     })),
             )
     }
+
+    /// レートコントロールモードボタンをレンダリング
+    fn render_rate_control_select(
+        &self,
+        current: RateControlMode,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let app_state = self.app_state.clone();
+        let options = [
+            (RateControlMode::Crf, "CRF (固定品質)"),
+            (RateControlMode::Cbr, "CBR (固定レート)"),
+            (RateControlMode::Vbr, "VBR (可変レート)"),
+            (RateControlMode::Cqp, "CQP (固定QP)"),
+        ];
+
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(rgb(0x6c7086))
+                    .child("レートコントロールモード"),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(4.0))
+                    .children(options.iter().map(|(value, name)| {
+                        let is_selected = *value == current;
+                        let value_clone = *value;
+                        let app_state_clone = app_state.clone();
+
+                        div()
+                            .id(SharedString::from(format!("rate-control-{}", name)))
+                            .px(px(8.0))
+                            .py(px(4.0))
+                            .rounded(px(4.0))
+                            .text_xs()
+                            .cursor_pointer()
+                            .bg(if is_selected {
+                                rgb(0x89b4fa)
+                            } else {
+                                rgb(0x313244)
+                            })
+                            .text_color(if is_selected {
+                                rgb(0x1e1e2e)
+                            } else {
+                                rgb(0xcdd6f4)
+                            })
+                            .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
+                            .on_click(cx.listener(move |_this, _, _, cx| {
+                                app_state_clone
+                                    .transcode_settings
+                                    .update(cx, |settings, _| {
+                                        settings.rate_control = value_clone;
+                                    });
+                                // 予測サイズを更新
+                                Self::update_estimated_sizes(&app_state_clone, cx);
+                                cx.notify();
+                            }))
+                            .child(name.to_string())
+                    })),
+            )
+    }
+
+    /// ビットレート選択ボタンをレンダリング
+    fn render_bitrate_select(
+        &self,
+        current: u32,
+        label: &str,
+        id_prefix: &str,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let app_state = self.app_state.clone();
+        let options = [
+            (1000, "1 Mbps"),
+            (2500, "2.5 Mbps"),
+            (5000, "5 Mbps"),
+            (8000, "8 Mbps"),
+            (12000, "12 Mbps"),
+            (20000, "20 Mbps"),
+        ];
+        
+        let id_prefix_string = id_prefix.to_string();
+
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(rgb(0x6c7086))
+                    .child(format!("{} ({} kbps)", label, current)),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(4.0))
+                    .children(options.iter().map(move |(value, name)| {
+                        let is_selected = *value == current;
+                        let value_clone = *value;
+                        let app_state_clone = app_state.clone();
+                        let id_prefix_clone = id_prefix_string.clone();
+
+                        div()
+                            .id(SharedString::from(format!("{}-{}", id_prefix_clone, value)))
+                            .px(px(8.0))
+                            .py(px(4.0))
+                            .rounded(px(4.0))
+                            .text_xs()
+                            .cursor_pointer()
+                            .bg(if is_selected {
+                                rgb(0x89b4fa)
+                            } else {
+                                rgb(0x313244)
+                            })
+                            .text_color(if is_selected {
+                                rgb(0x1e1e2e)
+                            } else {
+                                rgb(0xcdd6f4)
+                            })
+                            .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
+                            .on_click(cx.listener(move |_this, _, _, cx| {
+                                app_state_clone
+                                    .transcode_settings
+                                    .update(cx, |settings, _| {
+                                        if id_prefix_clone == "target-bitrate" {
+                                            settings.target_bitrate = value_clone;
+                                        } else if id_prefix_clone == "max-bitrate" {
+                                            settings.max_bitrate = value_clone;
+                                        }
+                                    });
+                                // 予測サイズを更新
+                                Self::update_estimated_sizes(&app_state_clone, cx);
+                                cx.notify();
+                            }))
+                            .child(name.to_string())
+                    })),
+            )
+    }
+
+    /// 最大ビットレート選択ボタンをレンダリング
+    fn render_max_bitrate_select(
+        &self,
+        current: u32,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        self.render_bitrate_select(current, "最大ビットレート", "max-bitrate", cx)
+    }
 }
 
 impl Render for SettingsPanel {
@@ -618,12 +778,95 @@ impl Render for SettingsPanel {
                     .child(self.render_video_codec_select(settings.video_codec, cx))
                     // 解像度
                     .child(self.render_resolution_select(settings.resolution, cx))
-                    // 品質 (CRF)
-                    .child(self.render_crf_select(settings.crf, cx))
-                    // プリセット
-                    .child(self.render_preset_select(settings.preset, cx))
                     // HWアクセラレーション
                     .child(self.render_hwaccel_select(settings.hwaccel, cx))
+                    // セクション区切り
+                    .child(
+                        div()
+                            .w_full()
+                            .flex()
+                            .flex_col()
+                            .gap(px(4.0))
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(rgb(0xa6adc8))
+                                    .child("レートコントロール"),
+                            )
+                            .child(div().w_full().h(px(1.0)).bg(rgb(0x313244))),
+                    )
+                    // レートコントロールモード
+                    .child(self.render_rate_control_select(settings.rate_control, cx))
+                    // 品質 (CRF/QP) - CRFまたはCQPモードの時のみ
+                    .when(
+                        settings.rate_control == RateControlMode::Crf
+                            || settings.rate_control == RateControlMode::Cqp,
+                        |this| this.child(self.render_crf_select(settings.crf, cx)),
+                    )
+                    // ターゲットビットレート - CBR/VBRモードの時
+                    .when(
+                        settings.rate_control == RateControlMode::Cbr
+                            || settings.rate_control == RateControlMode::Vbr,
+                        |this| {
+                            this.child(self.render_bitrate_select(
+                                settings.target_bitrate,
+                                "ターゲットビットレート",
+                                "target-bitrate",
+                                cx,
+                            ))
+                        },
+                    )
+                    // 最大ビットレート - VBRモードの時のみ
+                    .when(settings.rate_control == RateControlMode::Vbr, |this| {
+                        this.child(self.render_max_bitrate_select(settings.max_bitrate, cx))
+                    })
+                    // プリセット
+                    .child(self.render_preset_select(settings.preset, cx))
+                    // セクション区切り - エンコーダー詳細設定
+                    .child(
+                        div()
+                            .w_full()
+                            .flex()
+                            .flex_col()
+                            .gap(px(4.0))
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(rgb(0xa6adc8))
+                                    .child("エンコーダー詳細設定"),
+                            )
+                            .child(div().w_full().h(px(1.0)).bg(rgb(0x313244))),
+                    )
+                    // 共通フレーム設定
+                    .child(self.render_bframes_select(settings.bframes, cx))
+                    .child(self.render_ref_frames_select(settings.ref_frames, cx))
+                    .child(self.render_gop_select(settings.gop_size, cx))
+                    .child(self.render_lookahead_select(settings.lookahead, cx))
+                    // エンコーダー固有設定
+                    .when(
+                        settings.hwaccel == HwAccelType::Nvenc
+                            || settings.hwaccel == HwAccelType::Auto,
+                        |this| this.child(self.render_nvenc_settings(&settings, cx)),
+                    )
+                    .when(settings.hwaccel == HwAccelType::Qsv, |this| {
+                        this.child(self.render_qsv_settings(&settings, cx))
+                    })
+                    .when(settings.hwaccel == HwAccelType::Amf, |this| {
+                        this.child(self.render_amf_settings(&settings, cx))
+                    })
+                    .when(settings.hwaccel == HwAccelType::Software, |this| {
+                        this.child(self.render_software_settings(&settings, cx))
+                    })
+                    // VP9固有設定
+                    .when(settings.video_codec == VideoCodec::Vp9, |this| {
+                        this.child(self.render_vp9_settings(&settings, cx))
+                    })
+                    // AV1固有設定
+                    .when(settings.video_codec == VideoCodec::Av1, |this| {
+                        this.child(self.render_av1_settings(&settings, cx))
+                    })
                     // セクション区切り
                     .child(div().w_full().h(px(1.0)).bg(rgb(0x313244)))
                     // オーディオコーデック
