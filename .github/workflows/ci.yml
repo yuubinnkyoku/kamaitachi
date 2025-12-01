@@ -4,80 +4,80 @@
 name: CI
 
 on:
-  push:
-    branches: [master, main]
-  pull_request:
-    branches: [master, main]
+    push:
+        branches: [master, main]
+    pull_request:
+        branches: [master, main]
 
 env:
-  CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
+    CARGO_TERM_COLOR: always
+    RUST_BACKTRACE: 1
 
 jobs:
-  # コードのフォーマットチェック
-  fmt:
-    name: Format Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-action@stable
-        with:
-          components: rustfmt
-      
-      - name: Check formatting
-        run: cargo fmt --all -- --check
+    # コードのフォーマットチェック
+    fmt:
+        name: Format Check
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
 
-  # Clippy による静的解析
-  clippy:
-    name: Clippy
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-action@stable
-        with:
-          components: clippy
-      
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-clippy-
-      
-      - name: Run Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+            - name: Install Rust toolchain
+              uses: dtolnay/rust-action@stable
+              with:
+                  components: rustfmt
 
-  # ビルドチェック
-  build:
-    name: Build
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-action@stable
-      
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-build-
-      
-      - name: Build
-        run: cargo build --release
-      
-      - name: Run tests
-        run: cargo test --release
+            - name: Check formatting
+              run: cargo fmt --all -- --check
+
+    # Clippy による静的解析
+    clippy:
+        name: Clippy
+        runs-on: windows-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install Rust toolchain
+              uses: dtolnay/rust-action@stable
+              with:
+                  components: clippy
+
+            - name: Cache cargo registry
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.cargo/registry
+                      ~/.cargo/git
+                      target
+                  key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.lock') }}
+                  restore-keys: |
+                      ${{ runner.os }}-cargo-clippy-
+
+            - name: Run Clippy
+              run: cargo clippy --all-targets --all-features -- -D warnings
+
+    # ビルドチェック
+    build:
+        name: Build
+        runs-on: windows-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install Rust toolchain
+              uses: dtolnay/rust-action@stable
+
+            - name: Cache cargo registry
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.cargo/registry
+                      ~/.cargo/git
+                      target
+                  key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+                  restore-keys: |
+                      ${{ runner.os }}-cargo-build-
+
+            - name: Build
+              run: cargo build --release
+
+            - name: Run tests
+              run: cargo test --release

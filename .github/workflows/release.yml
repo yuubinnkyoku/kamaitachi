@@ -4,189 +4,189 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version number (e.g., 0.1.0)'
-        required: true
-        type: string
+    push:
+        tags:
+            - "v*"
+    workflow_dispatch:
+        inputs:
+            version:
+                description: "Version number (e.g., 0.1.0)"
+                required: true
+                type: string
 
 env:
-  CARGO_TERM_COLOR: always
-  APP_NAME: kamaitachi
-  APP_DISPLAY_NAME: Kamaitachi
+    CARGO_TERM_COLOR: always
+    APP_NAME: kamaitachi
+    APP_DISPLAY_NAME: Kamaitachi
 
 jobs:
-  build-windows:
-    name: Build Windows Installer
-    runs-on: windows-latest
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-action@stable
-      
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-release-
-      
-      - name: Build release binary
-        run: cargo build --release
-      
-      - name: Get version
-        id: version
-        shell: pwsh
-        run: |
-          if ("${{ github.event.inputs.version }}" -ne "") {
-            $version = "${{ github.event.inputs.version }}"
-          } else {
-            $version = "${{ github.ref_name }}".TrimStart("v")
-          }
-          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
-          echo "Version: $version"
-      
-      # ポータブル版 ZIP の作成
-      - name: Create portable ZIP
-        shell: pwsh
-        run: |
-          $version = "${{ steps.version.outputs.VERSION }}"
-          $zipName = "${{ env.APP_NAME }}-$version-windows-x64-portable.zip"
-          
-          # ポータブル版用ディレクトリ作成
-          New-Item -ItemType Directory -Force -Path "portable"
-          Copy-Item "target/release/${{ env.APP_NAME }}.exe" "portable/"
-          Copy-Item "README.md" "portable/" -ErrorAction SilentlyContinue
-          
-          # ZIP作成
-          Compress-Archive -Path "portable/*" -DestinationPath $zipName
-          echo "PORTABLE_ZIP=$zipName" >> $env:GITHUB_OUTPUT
-      
-      # Inno Setup によるインストーラー作成
-      - name: Create installer with Inno Setup
-        shell: pwsh
-        run: |
-          $version = "${{ steps.version.outputs.VERSION }}"
-          
-          # Inno Setup スクリプトを生成
-          $issContent = @"
-          #define MyAppName "${{ env.APP_DISPLAY_NAME }}"
-          #define MyAppVersion "$version"
-          #define MyAppPublisher "yuubinnkyoku"
-          #define MyAppURL "https://github.com/yuubinnkyoku/kamaitachi"
-          #define MyAppExeName "${{ env.APP_NAME }}.exe"
-          
-          [Setup]
-          AppId={{8A9E4D7B-3F21-4C5A-B8D6-1E2F3A4B5C6D}
-          AppName={#MyAppName}
-          AppVersion={#MyAppVersion}
-          AppPublisher={#MyAppPublisher}
-          AppPublisherURL={#MyAppURL}
-          AppSupportURL={#MyAppURL}
-          AppUpdatesURL={#MyAppURL}/releases
-          DefaultDirName={autopf}\{#MyAppName}
-          DefaultGroupName={#MyAppName}
-          AllowNoIcons=yes
-          LicenseFile=
-          PrivilegesRequired=lowest
-          PrivilegesRequiredOverridesAllowed=dialog
-          OutputDir=.
-          OutputBaseFilename=${{ env.APP_NAME }}-$version-windows-x64-setup
-          Compression=lzma
-          SolidCompression=yes
-          WizardStyle=modern
-          ArchitecturesInstallIn64BitMode=x64compatible
-          ArchitecturesAllowed=x64compatible
-          
-          [Languages]
-          Name: "english"; MessagesFile: "compiler:Default.isl"
-          Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
-          
-          [Tasks]
-          Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-          
-          [Files]
-          Source: "target\release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-          
-          [Icons]
-          Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-          Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-          Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
-          
-          [Run]
-          Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
-          "@
-          
-          $issContent | Out-File -FilePath "installer.iss" -Encoding UTF8
-          
-          # Inno Setup でコンパイル
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer.iss"
-      
-      - name: List artifacts
-        shell: pwsh
-        run: |
-          Get-ChildItem -Filter "*.zip"
-          Get-ChildItem -Filter "*.exe" | Where-Object { $_.Name -like "*setup*" }
-      
-      # アーティファクトのアップロード
-      - name: Upload portable ZIP
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-portable
-          path: ${{ env.APP_NAME }}-*-portable.zip
-          if-no-files-found: error
-      
-      - name: Upload installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-installer
-          path: ${{ env.APP_NAME }}-*-setup.exe
-          if-no-files-found: error
+    build-windows:
+        name: Build Windows Installer
+        runs-on: windows-latest
 
-  # GitHub Release の作成
-  create-release:
-    name: Create Release
-    needs: build-windows
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    
-    permissions:
-      contents: write
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-      
-      - name: List downloaded artifacts
-        run: find artifacts -type f
-      
-      - name: Get version
-        id: version
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
-      
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: "Kamaitachi v${{ steps.version.outputs.VERSION }}"
-          draft: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          generate_release_notes: true
-          files: |
-            artifacts/windows-portable/*
-            artifacts/windows-installer/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install Rust toolchain
+              uses: dtolnay/rust-action@stable
+
+            - name: Cache cargo registry
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.cargo/registry
+                      ~/.cargo/git
+                      target
+                  key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+                  restore-keys: |
+                      ${{ runner.os }}-cargo-release-
+
+            - name: Build release binary
+              run: cargo build --release
+
+            - name: Get version
+              id: version
+              shell: pwsh
+              run: |
+                  if ("${{ github.event.inputs.version }}" -ne "") {
+                    $version = "${{ github.event.inputs.version }}"
+                  } else {
+                    $version = "${{ github.ref_name }}".TrimStart("v")
+                  }
+                  echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+                  echo "Version: $version"
+
+            # ポータブル版 ZIP の作成
+            - name: Create portable ZIP
+              shell: pwsh
+              run: |
+                  $version = "${{ steps.version.outputs.VERSION }}"
+                  $zipName = "${{ env.APP_NAME }}-$version-windows-x64-portable.zip"
+
+                  # ポータブル版用ディレクトリ作成
+                  New-Item -ItemType Directory -Force -Path "portable"
+                  Copy-Item "target/release/${{ env.APP_NAME }}.exe" "portable/"
+                  Copy-Item "README.md" "portable/" -ErrorAction SilentlyContinue
+
+                  # ZIP作成
+                  Compress-Archive -Path "portable/*" -DestinationPath $zipName
+                  echo "PORTABLE_ZIP=$zipName" >> $env:GITHUB_OUTPUT
+
+            # Inno Setup によるインストーラー作成
+            - name: Create installer with Inno Setup
+              shell: pwsh
+              run: |
+                  $version = "${{ steps.version.outputs.VERSION }}"
+
+                  # Inno Setup スクリプトを生成
+                  $issContent = @"
+                  #define MyAppName "${{ env.APP_DISPLAY_NAME }}"
+                  #define MyAppVersion "$version"
+                  #define MyAppPublisher "yuubinnkyoku"
+                  #define MyAppURL "https://github.com/yuubinnkyoku/kamaitachi"
+                  #define MyAppExeName "${{ env.APP_NAME }}.exe"
+
+                  [Setup]
+                  AppId={{8A9E4D7B-3F21-4C5A-B8D6-1E2F3A4B5C6D}
+                  AppName={#MyAppName}
+                  AppVersion={#MyAppVersion}
+                  AppPublisher={#MyAppPublisher}
+                  AppPublisherURL={#MyAppURL}
+                  AppSupportURL={#MyAppURL}
+                  AppUpdatesURL={#MyAppURL}/releases
+                  DefaultDirName={autopf}\{#MyAppName}
+                  DefaultGroupName={#MyAppName}
+                  AllowNoIcons=yes
+                  LicenseFile=
+                  PrivilegesRequired=lowest
+                  PrivilegesRequiredOverridesAllowed=dialog
+                  OutputDir=.
+                  OutputBaseFilename=${{ env.APP_NAME }}-$version-windows-x64-setup
+                  Compression=lzma
+                  SolidCompression=yes
+                  WizardStyle=modern
+                  ArchitecturesInstallIn64BitMode=x64compatible
+                  ArchitecturesAllowed=x64compatible
+
+                  [Languages]
+                  Name: "english"; MessagesFile: "compiler:Default.isl"
+                  Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
+
+                  [Tasks]
+                  Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+
+                  [Files]
+                  Source: "target\release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+
+                  [Icons]
+                  Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+                  Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
+                  Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
+                  [Run]
+                  Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+                  "@
+
+                  $issContent | Out-File -FilePath "installer.iss" -Encoding UTF8
+
+                  # Inno Setup でコンパイル
+                  & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer.iss"
+
+            - name: List artifacts
+              shell: pwsh
+              run: |
+                  Get-ChildItem -Filter "*.zip"
+                  Get-ChildItem -Filter "*.exe" | Where-Object { $_.Name -like "*setup*" }
+
+            # アーティファクトのアップロード
+            - name: Upload portable ZIP
+              uses: actions/upload-artifact@v4
+              with:
+                  name: windows-portable
+                  path: ${{ env.APP_NAME }}-*-portable.zip
+                  if-no-files-found: error
+
+            - name: Upload installer
+              uses: actions/upload-artifact@v4
+              with:
+                  name: windows-installer
+                  path: ${{ env.APP_NAME }}-*-setup.exe
+                  if-no-files-found: error
+
+    # GitHub Release の作成
+    create-release:
+        name: Create Release
+        needs: build-windows
+        runs-on: ubuntu-latest
+        if: startsWith(github.ref, 'refs/tags/')
+
+        permissions:
+            contents: write
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Download all artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  path: artifacts
+
+            - name: List downloaded artifacts
+              run: find artifacts -type f
+
+            - name: Get version
+              id: version
+              run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+            - name: Create Release
+              uses: softprops/action-gh-release@v2
+              with:
+                  name: "Kamaitachi v${{ steps.version.outputs.VERSION }}"
+                  draft: true
+                  prerelease: ${{ contains(github.ref_name, '-') }}
+                  generate_release_notes: true
+                  files: |
+                      artifacts/windows-portable/*
+                      artifacts/windows-installer/*
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
