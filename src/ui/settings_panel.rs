@@ -662,7 +662,7 @@ impl SettingsPanel {
             (12000, "12 Mbps"),
             (20000, "20 Mbps"),
         ];
-        
+
         let id_prefix_string = id_prefix.to_string();
 
         div()
@@ -726,11 +726,7 @@ impl SettingsPanel {
     }
 
     /// 最大ビットレート選択ボタンをレンダリング
-    fn render_max_bitrate_select(
-        &self,
-        current: u32,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
+    fn render_max_bitrate_select(&self, current: u32, cx: &mut Context<Self>) -> impl IntoElement {
         self.render_bitrate_select(current, "最大ビットレート", "max-bitrate", cx)
     }
 }
