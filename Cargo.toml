@@ -15,7 +15,7 @@ gpui-component = "0.4.2"
 # ez-ffmpeg = { version = "0.6", features = ["static"] }
 
 # ファイルダイアログ
-rfd = "0.14"
+rfd = "0.16"
 
 # 非同期（GPUIと互換性のあるsmolを使用）
 smol = "2"
