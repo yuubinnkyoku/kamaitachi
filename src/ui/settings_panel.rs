@@ -1,14 +1,14 @@
 //! エンコード設定パネル
 
-use gpui::prelude::FluentBuilder;
-use gpui::*;
+use gpui::prelude::*;
+use gpui::{InteractiveElement, *};
 use gpui_component::button::{Button, ButtonVariant, ButtonVariants};
 
 use crate::app::AppState;
 use crate::transcoder::{
     AmfQuality, AmfUsage, AqMode, AudioCodec, ContainerFormat, HwAccelType, NvencBRefMode,
-    NvencMultipass, NvencTune, RateControlMode, VideoCodec, VideoPreset, VideoResolution,
-    X264Profile, X264Tune,
+    NvencMultipass, NvencTune, RateControlMode, TranscodeSettings, VideoCodec, VideoPreset,
+    VideoResolution, X264Profile, X264Tune,
 };
 
 /// 設定パネル
@@ -81,7 +81,7 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_click(cx.listener(move |_this, _, _, cx| {
+                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
                                 app_state_clone
                                     .transcode_settings
                                     .update(cx, |settings, _| {
@@ -150,7 +150,7 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_click(cx.listener(move |_this, _, _, cx| {
+                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
                                 app_state_clone
                                     .transcode_settings
                                     .update(cx, |settings, _| {
@@ -215,7 +215,7 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_click(cx.listener(move |_this, _, _, cx| {
+                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
                                 app_state_clone
                                     .transcode_settings
                                     .update(cx, |settings, _| {
@@ -285,7 +285,7 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_click(cx.listener(move |_this, _, _, cx| {
+                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
                                 app_state_clone
                                     .transcode_settings
                                     .update(cx, |settings, _| {
@@ -355,7 +355,7 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_click(cx.listener(move |_this, _, _, cx| {
+                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
                                 app_state_clone
                                     .transcode_settings
                                     .update(cx, |settings, _| {
@@ -424,7 +424,7 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_click(cx.listener(move |_this, _, _, cx| {
+                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
                                 app_state_clone
                                     .transcode_settings
                                     .update(cx, |settings, _| {
@@ -492,7 +492,7 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_click(cx.listener(move |_this, _, _, cx| {
+                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
                                 app_state_clone
                                     .transcode_settings
                                     .update(cx, |settings, _| {
@@ -561,7 +561,7 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_click(cx.listener(move |_this, _, _, cx| {
+                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
                                 app_state_clone
                                     .transcode_settings
                                     .update(cx, |settings, _| {
@@ -630,7 +630,7 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_click(cx.listener(move |_this, _, _, cx| {
+                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
                                 app_state_clone
                                     .transcode_settings
                                     .update(cx, |settings, _| {
@@ -706,7 +706,7 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_click(cx.listener(move |_this, _, _, cx| {
+                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
                                 app_state_clone
                                     .transcode_settings
                                     .update(cx, |settings, _| {
@@ -728,6 +728,554 @@ impl SettingsPanel {
     /// 最大ビットレート選択ボタンをレンダリング
     fn render_max_bitrate_select(&self, current: u32, cx: &mut Context<Self>) -> impl IntoElement {
         self.render_bitrate_select(current, "最大ビットレート", "max-bitrate", cx)
+    }
+
+    /// Bフレーム数選択ボタンをレンダリング
+    fn render_bframes_select(&self, current: u8, cx: &mut Context<Self>) -> impl IntoElement {
+        let app_state = self.app_state.clone();
+        let options = [
+            (0u8, "0 (なし)"),
+            (1u8, "1"),
+            (2u8, "2"),
+            (3u8, "3 (標準)"),
+            (4u8, "4"),
+            (5u8, "5"),
+        ];
+
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(rgb(0x6c7086))
+                    .child(format!("Bフレーム数: {}", current)),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(4.0))
+                    .children(options.iter().map(|(value, name)| {
+                        let is_selected = *value == current;
+                        let value_clone = *value;
+                        let app_state_clone = app_state.clone();
+
+                        gpui::div()
+                            .id(SharedString::from(format!("bframes-{}", value)))
+                            .px(px(8.0))
+                            .py(px(4.0))
+                            .rounded(px(4.0))
+                            .text_xs()
+                            .cursor_pointer()
+                            .bg(if is_selected {
+                                rgb(0x89b4fa)
+                            } else {
+                                rgb(0x313244)
+                            })
+                            .text_color(if is_selected {
+                                rgb(0x1e1e2e)
+                            } else {
+                                rgb(0xcdd6f4)
+                            })
+                            .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
+                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
+                                app_state_clone
+                                    .transcode_settings
+                                    .update(cx, |settings, _| {
+                                        settings.bframes = value_clone;
+                                    });
+                                // 予測サイズを更新
+                                Self::update_estimated_sizes(&app_state_clone, cx);
+                                cx.notify();
+                            }))
+                            .child(name.to_string())
+                    })),
+            )
+    }
+
+    /// 参照フレーム数選択ボタンをレンダリング
+    fn render_ref_frames_select(&self, current: u8, cx: &mut Context<Self>) -> impl IntoElement {
+        let app_state = self.app_state.clone();
+        let options = [
+            (1u8, "1"),
+            (2u8, "2"),
+            (3u8, "3"),
+            (4u8, "4 (標準)"),
+            (5u8, "5"),
+            (6u8, "6"),
+        ];
+
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(rgb(0x6c7086))
+                    .child(format!("参照フレーム数: {}", current)),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(4.0))
+                    .children(options.iter().map(|(value, name)| {
+                        let is_selected = *value == current;
+                        let value_clone = *value;
+                        let app_state_clone = app_state.clone();
+
+                        div()
+                            .id(SharedString::from(format!("ref-frames-{}", value)))
+                            .px(px(8.0))
+                            .py(px(4.0))
+                            .rounded(px(4.0))
+                            .text_xs()
+                            .cursor_pointer()
+                            .bg(if is_selected {
+                                rgb(0x89b4fa)
+                            } else {
+                                rgb(0x313244)
+                            })
+                            .text_color(if is_selected {
+                                rgb(0x1e1e2e)
+                            } else {
+                                rgb(0xcdd6f4)
+                            })
+                            .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
+                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
+                                app_state_clone
+                                    .transcode_settings
+                                    .update(cx, |settings, _| {
+                                        settings.ref_frames = value_clone;
+                                    });
+                                // 予測サイズを更新
+                                Self::update_estimated_sizes(&app_state_clone, cx);
+                                cx.notify();
+                            }))
+                            .child(name.to_string())
+                    })),
+            )
+    }
+
+    /// GOPサイズ選択ボタンをレンダリング
+    fn render_gop_select(&self, current: u32, cx: &mut Context<Self>) -> impl IntoElement {
+        let app_state = self.app_state.clone();
+        let options = [
+            (30u32, "30 (1秒)"),
+            (60u32, "60 (2秒)"),
+            (120u32, "120 (4秒)"),
+            (250u32, "250 (標準)"),
+            (300u32, "300 (10秒)"),
+        ];
+
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(rgb(0x6c7086))
+                    .child(format!("GOPサイズ (キーフレーム間隔): {}", current)),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(4.0))
+                    .children(options.iter().map(|(value, name)| {
+                        let is_selected = *value == current;
+                        let value_clone = *value;
+                        let app_state_clone = app_state.clone();
+
+                        div()
+                            .id(SharedString::from(format!("gop-{}", value)))
+                            .px(px(8.0))
+                            .py(px(4.0))
+                            .rounded(px(4.0))
+                            .text_xs()
+                            .cursor_pointer()
+                            .bg(if is_selected {
+                                rgb(0x89b4fa)
+                            } else {
+                                rgb(0x313244)
+                            })
+                            .text_color(if is_selected {
+                                rgb(0x1e1e2e)
+                            } else {
+                                rgb(0xcdd6f4)
+                            })
+                            .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
+                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
+                                app_state_clone
+                                    .transcode_settings
+                                    .update(cx, |settings, _| {
+                                        settings.gop_size = value_clone;
+                                    });
+                                // 予測サイズを更新
+                                Self::update_estimated_sizes(&app_state_clone, cx);
+                                cx.notify();
+                            }))
+                            .child(name.to_string())
+                    })),
+            )
+    }
+
+    /// ルックアヘッド選択ボタンをレンダリング
+    fn render_lookahead_select(&self, current: u8, cx: &mut Context<Self>) -> impl IntoElement {
+        let app_state = self.app_state.clone();
+        let options = [
+            (0u8, "0 (なし)"),
+            (10u8, "10"),
+            (20u8, "20 (標準)"),
+            (30u8, "30"),
+            (40u8, "40"),
+        ];
+
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(rgb(0x6c7086))
+                    .child(format!("ルックアヘッド (先行読み込み): {}", current)),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(4.0))
+                    .children(options.iter().map(|(value, name)| {
+                        let is_selected = *value == current;
+                        let value_clone = *value;
+                        let app_state_clone = app_state.clone();
+
+                        div()
+                            .id(SharedString::from(format!("lookahead-{}", value)))
+                            .px(px(8.0))
+                            .py(px(4.0))
+                            .rounded(px(4.0))
+                            .text_xs()
+                            .cursor_pointer()
+                            .bg(if is_selected {
+                                rgb(0x89b4fa)
+                            } else {
+                                rgb(0x313244)
+                            })
+                            .text_color(if is_selected {
+                                rgb(0x1e1e2e)
+                            } else {
+                                rgb(0xcdd6f4)
+                            })
+                            .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
+                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
+                                app_state_clone
+                                    .transcode_settings
+                                    .update(cx, |settings, _| {
+                                        settings.lookahead = value_clone;
+                                    });
+                                // 予測サイズを更新
+                                Self::update_estimated_sizes(&app_state_clone, cx);
+                                cx.notify();
+                            }))
+                            .child(name.to_string())
+                    })),
+            )
+    }
+
+    /// NVENC設定をレンダリング
+    fn render_nvenc_settings(
+        &self,
+        settings: &TranscodeSettings,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let app_state = self.app_state.clone();
+        
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(8.0))
+            .child(
+                div()
+                    .text_xs()
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(rgb(0xa6adc8))
+                    .child("NVENC設定"),
+            )
+            // プリセット (Tune)
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_col()
+                    .gap(px(4.0))
+                    .child(div().text_xs().text_color(rgb(0x6c7086)).child("チューニング"))
+                    .child(
+                        div()
+                            .w_full()
+                            .flex()
+                            .flex_wrap()
+                            .gap(px(4.0))
+                            .children(NvencTune::all().iter().map(|value| {
+                                let is_selected = *value == settings.nvenc_tune;
+                                let value_clone = *value;
+                                let app_state_clone = app_state.clone();
+
+                                div()
+                                    .px(px(8.0))
+                                    .py(px(4.0))
+                                    .rounded(px(4.0))
+                                    .text_xs()
+                                    .cursor_pointer()
+                                    .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
+                                    .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
+                                    .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
+                                        app_state_clone.transcode_settings.update(cx, |s, _| {
+                                            s.nvenc_tune = value_clone;
+                                        });
+                                        cx.notify();
+                                    }))
+                                    .child(value.display_name())
+                            })),
+                    ),
+            )
+            // マルチパス
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_col()
+                    .gap(px(4.0))
+                    .child(div().text_xs().text_color(rgb(0x6c7086)).child("マルチパス"))
+                    .child(
+                        div()
+                            .w_full()
+                            .flex()
+                            .flex_wrap()
+                            .gap(px(4.0))
+                            .children(NvencMultipass::all().iter().map(|value| {
+                                let is_selected = *value == settings.nvenc_multipass;
+                                let value_clone = *value;
+                                let app_state_clone = app_state.clone();
+
+                                div()
+                                    .px(px(8.0))
+                                    .py(px(4.0))
+                                    .rounded(px(4.0))
+                                    .text_xs()
+                                    .cursor_pointer()
+                                    .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
+                                    .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
+                                    .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
+                                        app_state_clone.transcode_settings.update(cx, |s, _| {
+                                            s.nvenc_multipass = value_clone;
+                                        });
+                                        cx.notify();
+                                    }))
+                                    .child(value.display_name())
+                            })),
+                    ),
+            )
+    }
+
+    /// QSV設定をレンダリング
+    fn render_qsv_settings(
+        &self,
+        _settings: &TranscodeSettings,
+        _cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        // QSV設定の実装（現在はプレースホルダー）
+        div()
+            .w_full()
+            .child(div().text_xs().text_color(rgb(0x6c7086)).child("QSV設定 (標準設定を使用)"))
+    }
+
+    /// AMF設定をレンダリング
+    fn render_amf_settings(
+        &self,
+        settings: &TranscodeSettings,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let app_state = self.app_state.clone();
+        
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(8.0))
+            .child(
+                div()
+                    .text_xs()
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(rgb(0xa6adc8))
+                    .child("AMF設定"),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_col()
+                    .gap(px(4.0))
+                    .child(div().text_xs().text_color(rgb(0x6c7086)).child("使用法"))
+                    .child(
+                        div()
+                            .w_full()
+                            .flex()
+                            .flex_wrap()
+                            .gap(px(4.0))
+                            .children(AmfUsage::all().iter().map(|value| {
+                                let is_selected = *value == settings.amf_usage;
+                                let value_clone = *value;
+                                let app_state_clone = app_state.clone();
+
+                                div()
+                                    .px(px(8.0))
+                                    .py(px(4.0))
+                                    .rounded(px(4.0))
+                                    .text_xs()
+                                    .cursor_pointer()
+                                    .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
+                                    .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
+                                    .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
+                                        app_state_clone.transcode_settings.update(cx, |s, _| {
+                                            s.amf_usage = value_clone;
+                                        });
+                                        cx.notify();
+                                    }))
+                                    .child(value.display_name())
+                            })),
+                    ),
+            )
+    }
+
+    /// ソフトウェアエンコード設定をレンダリング
+    fn render_software_settings(
+        &self,
+        settings: &TranscodeSettings,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let app_state = self.app_state.clone();
+        
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(8.0))
+            .child(
+                div()
+                    .text_xs()
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(rgb(0xa6adc8))
+                    .child("ソフトウェアエンコード設定"),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_col()
+                    .gap(px(4.0))
+                    .child(div().text_xs().text_color(rgb(0x6c7086)).child("チューニング"))
+                    .child(
+                        div()
+                            .w_full()
+                            .flex()
+                            .flex_wrap()
+                            .gap(px(4.0))
+                            .children(X264Tune::all().iter().map(|value| {
+                                let is_selected = *value == settings.x264_tune;
+                                let value_clone = *value;
+                                let app_state_clone = app_state.clone();
+
+                                div()
+                                    .px(px(8.0))
+                                    .py(px(4.0))
+                                    .rounded(px(4.0))
+                                    .text_xs()
+                                    .cursor_pointer()
+                                    .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
+                                    .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
+                                    .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
+                                        app_state_clone.transcode_settings.update(cx, |s, _| {
+                                            s.x264_tune = value_clone;
+                                        });
+                                        cx.notify();
+                                    }))
+                                    .child(value.display_name())
+                            })),
+                    ),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_col()
+                    .gap(px(4.0))
+                    .child(div().text_xs().text_color(rgb(0x6c7086)).child("プロファイル"))
+                    .child(
+                        div()
+                            .w_full()
+                            .flex()
+                            .flex_wrap()
+                            .gap(px(4.0))
+                            .children(X264Profile::all().iter().map(|value| {
+                                let is_selected = *value == settings.x264_profile;
+                                let value_clone = *value;
+                                let app_state_clone = app_state.clone();
+
+                                div()
+                                    .px(px(8.0))
+                                    .py(px(4.0))
+                                    .rounded(px(4.0))
+                                    .text_xs()
+                                    .cursor_pointer()
+                                    .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
+                                    .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
+                                    .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
+                                        app_state_clone.transcode_settings.update(cx, |s, _| {
+                                            s.x264_profile = value_clone;
+                                        });
+                                        cx.notify();
+                                    }))
+                                    .child(value.display_name())
+                            })),
+                    ),
+            )
+    }
+
+    /// VP9設定をレンダリング
+    fn render_vp9_settings(
+        &self,
+        _settings: &TranscodeSettings,
+        _cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        div()
+            .w_full()
+            .child(div().text_xs().text_color(rgb(0x6c7086)).child("VP9設定 (標準設定を使用)"))
+    }
+
+    /// AV1設定をレンダリング
+    fn render_av1_settings(
+        &self,
+        _settings: &TranscodeSettings,
+        _cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        div()
+            .w_full()
+            .child(div().text_xs().text_color(rgb(0x6c7086)).child("AV1設定 (標準設定を使用)"))
     }
 }
 
