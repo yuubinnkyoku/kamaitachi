@@ -8,7 +8,7 @@ use crate::transcoder::{
 };
 use gpui::*;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
 
 /// 現在の進捗情報（スレッド間共有用）
@@ -26,6 +26,8 @@ pub struct CurrentProgress {
     pub total_duration_centisecs: Arc<AtomicU32>,
     /// 現在の処理時間位置（秒 * 100）
     pub current_time_centisecs: Arc<AtomicU32>,
+    /// キャンセルフラグ
+    pub cancelled: Arc<AtomicBool>,
 }
 
 impl Default for CurrentProgress {
@@ -37,6 +39,7 @@ impl Default for CurrentProgress {
             fps_centi: Arc::new(AtomicU32::new(0)),
             total_duration_centisecs: Arc::new(AtomicU32::new(0)),
             current_time_centisecs: Arc::new(AtomicU32::new(0)),
+            cancelled: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -100,6 +103,17 @@ impl CurrentProgress {
         self.fps_centi.store(0, Ordering::Relaxed);
         self.total_duration_centisecs.store(0, Ordering::Relaxed);
         self.current_time_centisecs.store(0, Ordering::Relaxed);
+        self.cancelled.store(false, Ordering::Relaxed);
+    }
+
+    /// キャンセルフラグを設定
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::SeqCst);
+    }
+
+    /// キャンセルされたか確認
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::SeqCst)
     }
 
     /// 総時間を設定（秒）

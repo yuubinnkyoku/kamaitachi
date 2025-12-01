@@ -249,6 +249,13 @@ impl MainWindow {
                         let mut progress_info = FfmpegProgressInfo::default();
 
                         for line_result in reader.lines() {
+                            // キャンセルチェック
+                            if current_progress.is_cancelled() {
+                                log::info!("Transcode cancelled, killing FFmpeg process");
+                                let _ = child.kill();
+                                break;
+                            }
+
                             if let Ok(line) = line_result {
                                 // 行を累積的にパースして、進捗ブロックが完了したら更新
                                 if progress_info.parse_progress_line(&line) {
@@ -292,6 +299,21 @@ impl MainWindow {
                     child.wait_with_output()
                 })
                 .await;
+
+                // キャンセルされた場合
+                if app_state.current_progress.is_cancelled() {
+                    info!("Transcode was cancelled");
+                    cx.update(|cx| {
+                        app_state.files.update(cx, |files, _| {
+                            if let Some(f) = files.get_mut(index) {
+                                f.status = FileStatus::Cancelled;
+                            }
+                        });
+                    })
+                    .ok();
+                    // キャンセル後は残りのファイルも処理しない
+                    break;
+                }
 
                 match result {
                     Ok(output) => {

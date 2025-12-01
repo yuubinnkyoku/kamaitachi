@@ -16,6 +16,13 @@ impl ProgressView {
     pub fn new(app_state: AppState, _cx: &mut Context<Self>) -> Self {
         Self { app_state }
     }
+
+    /// キャンセル処理
+    fn cancel_transcode(&mut self, cx: &mut Context<Self>) {
+        log::info!("Cancel button clicked");
+        self.app_state.current_progress.cancel();
+        cx.notify();
+    }
 }
 
 impl Render for ProgressView {
@@ -103,6 +110,7 @@ impl Render for ProgressView {
                     // キャンセルボタン
                     .child(
                         div()
+                            .id("cancel-button")
                             .px(px(12.0))
                             .py(px(6.0))
                             .rounded(px(4.0))
@@ -111,6 +119,9 @@ impl Render for ProgressView {
                             .text_sm()
                             .cursor_pointer()
                             .hover(|s| s.bg(rgb(0xeba0ac)))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.cancel_transcode(cx);
+                            }))
                             .child("キャンセル"),
                     )
             }

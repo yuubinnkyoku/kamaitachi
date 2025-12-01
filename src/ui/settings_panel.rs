@@ -604,10 +604,11 @@ impl Render for SettingsPanel {
             // 設定項目
             .child(
                 div()
+                    .id("settings-content")
                     .flex_1()
                     .w_full()
                     .p(px(16.0))
-                    .overflow_hidden()
+                    .overflow_y_scroll()
                     .flex()
                     .flex_col()
                     .gap(px(16.0))
