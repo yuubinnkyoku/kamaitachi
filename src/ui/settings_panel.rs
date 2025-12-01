@@ -81,16 +81,19 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
-                                app_state_clone
-                                    .transcode_settings
-                                    .update(cx, |settings, _| {
-                                        settings.container = value_clone;
-                                    });
-                                // 予測サイズを更新
-                                Self::update_estimated_sizes(&app_state_clone, cx);
-                                cx.notify();
-                            }))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone
+                                        .transcode_settings
+                                        .update(cx, |settings, _| {
+                                            settings.container = value_clone;
+                                        });
+                                    // 予測サイズを更新
+                                    Self::update_estimated_sizes(&app_state_clone, cx);
+                                    cx.notify();
+                                }),
+                            )
                             .child(name.to_string())
                     })),
             )
@@ -150,16 +153,19 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
-                                app_state_clone
-                                    .transcode_settings
-                                    .update(cx, |settings, _| {
-                                        settings.video_codec = value_clone;
-                                    });
-                                // 予測サイズを更新
-                                Self::update_estimated_sizes(&app_state_clone, cx);
-                                cx.notify();
-                            }))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone
+                                        .transcode_settings
+                                        .update(cx, |settings, _| {
+                                            settings.video_codec = value_clone;
+                                        });
+                                    // 予測サイズを更新
+                                    Self::update_estimated_sizes(&app_state_clone, cx);
+                                    cx.notify();
+                                }),
+                            )
                             .child(name.to_string())
                     })),
             )
@@ -215,16 +221,19 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
-                                app_state_clone
-                                    .transcode_settings
-                                    .update(cx, |settings, _| {
-                                        settings.resolution = value_clone;
-                                    });
-                                // 予測サイズを更新
-                                Self::update_estimated_sizes(&app_state_clone, cx);
-                                cx.notify();
-                            }))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone
+                                        .transcode_settings
+                                        .update(cx, |settings, _| {
+                                            settings.resolution = value_clone;
+                                        });
+                                    // 予測サイズを更新
+                                    Self::update_estimated_sizes(&app_state_clone, cx);
+                                    cx.notify();
+                                }),
+                            )
                             .child(name.to_string())
                     })),
             )
@@ -285,16 +294,19 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
-                                app_state_clone
-                                    .transcode_settings
-                                    .update(cx, |settings, _| {
-                                        settings.preset = value_clone;
-                                    });
-                                // 予測サイズを更新
-                                Self::update_estimated_sizes(&app_state_clone, cx);
-                                cx.notify();
-                            }))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone
+                                        .transcode_settings
+                                        .update(cx, |settings, _| {
+                                            settings.preset = value_clone;
+                                        });
+                                    // 予測サイズを更新
+                                    Self::update_estimated_sizes(&app_state_clone, cx);
+                                    cx.notify();
+                                }),
+                            )
                             .child(name.to_string())
                     })),
             )
@@ -355,16 +367,19 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
-                                app_state_clone
-                                    .transcode_settings
-                                    .update(cx, |settings, _| {
-                                        settings.hwaccel = value_clone;
-                                    });
-                                // 予測サイズを更新
-                                Self::update_estimated_sizes(&app_state_clone, cx);
-                                cx.notify();
-                            }))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone
+                                        .transcode_settings
+                                        .update(cx, |settings, _| {
+                                            settings.hwaccel = value_clone;
+                                        });
+                                    // 予測サイズを更新
+                                    Self::update_estimated_sizes(&app_state_clone, cx);
+                                    cx.notify();
+                                }),
+                            )
                             .child(name.to_string())
                     })),
             )
@@ -424,16 +439,19 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
-                                app_state_clone
-                                    .transcode_settings
-                                    .update(cx, |settings, _| {
-                                        settings.audio_codec = value_clone;
-                                    });
-                                // 予測サイズを更新
-                                Self::update_estimated_sizes(&app_state_clone, cx);
-                                cx.notify();
-                            }))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone
+                                        .transcode_settings
+                                        .update(cx, |settings, _| {
+                                            settings.audio_codec = value_clone;
+                                        });
+                                    // 予測サイズを更新
+                                    Self::update_estimated_sizes(&app_state_clone, cx);
+                                    cx.notify();
+                                }),
+                            )
                             .child(name.to_string())
                     })),
             )
@@ -492,16 +510,19 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
-                                app_state_clone
-                                    .transcode_settings
-                                    .update(cx, |settings, _| {
-                                        settings.crf = value_clone;
-                                    });
-                                // 予測サイズを更新
-                                Self::update_estimated_sizes(&app_state_clone, cx);
-                                cx.notify();
-                            }))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone
+                                        .transcode_settings
+                                        .update(cx, |settings, _| {
+                                            settings.crf = value_clone;
+                                        });
+                                    // 予測サイズを更新
+                                    Self::update_estimated_sizes(&app_state_clone, cx);
+                                    cx.notify();
+                                }),
+                            )
                             .child(name.to_string())
                     })),
             )
@@ -561,16 +582,19 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
-                                app_state_clone
-                                    .transcode_settings
-                                    .update(cx, |settings, _| {
-                                        settings.audio_bitrate = value_clone;
-                                    });
-                                // 予測サイズを更新
-                                Self::update_estimated_sizes(&app_state_clone, cx);
-                                cx.notify();
-                            }))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone
+                                        .transcode_settings
+                                        .update(cx, |settings, _| {
+                                            settings.audio_bitrate = value_clone;
+                                        });
+                                    // 予測サイズを更新
+                                    Self::update_estimated_sizes(&app_state_clone, cx);
+                                    cx.notify();
+                                }),
+                            )
                             .child(name.to_string())
                     })),
             )
@@ -630,16 +654,19 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
-                                app_state_clone
-                                    .transcode_settings
-                                    .update(cx, |settings, _| {
-                                        settings.rate_control = value_clone;
-                                    });
-                                // 予測サイズを更新
-                                Self::update_estimated_sizes(&app_state_clone, cx);
-                                cx.notify();
-                            }))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone
+                                        .transcode_settings
+                                        .update(cx, |settings, _| {
+                                            settings.rate_control = value_clone;
+                                        });
+                                    // 予測サイズを更新
+                                    Self::update_estimated_sizes(&app_state_clone, cx);
+                                    cx.notify();
+                                }),
+                            )
                             .child(name.to_string())
                     })),
             )
@@ -706,20 +733,23 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
-                                app_state_clone
-                                    .transcode_settings
-                                    .update(cx, |settings, _| {
-                                        if id_prefix_clone == "target-bitrate" {
-                                            settings.target_bitrate = value_clone;
-                                        } else if id_prefix_clone == "max-bitrate" {
-                                            settings.max_bitrate = value_clone;
-                                        }
-                                    });
-                                // 予測サイズを更新
-                                Self::update_estimated_sizes(&app_state_clone, cx);
-                                cx.notify();
-                            }))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone
+                                        .transcode_settings
+                                        .update(cx, |settings, _| {
+                                            if id_prefix_clone == "target-bitrate" {
+                                                settings.target_bitrate = value_clone;
+                                            } else if id_prefix_clone == "max-bitrate" {
+                                                settings.max_bitrate = value_clone;
+                                            }
+                                        });
+                                    // 予測サイズを更新
+                                    Self::update_estimated_sizes(&app_state_clone, cx);
+                                    cx.notify();
+                                }),
+                            )
                             .child(name.to_string())
                     })),
             )
@@ -782,16 +812,19 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
-                                app_state_clone
-                                    .transcode_settings
-                                    .update(cx, |settings, _| {
-                                        settings.bframes = value_clone;
-                                    });
-                                // 予測サイズを更新
-                                Self::update_estimated_sizes(&app_state_clone, cx);
-                                cx.notify();
-                            }))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone
+                                        .transcode_settings
+                                        .update(cx, |settings, _| {
+                                            settings.bframes = value_clone;
+                                        });
+                                    // 予測サイズを更新
+                                    Self::update_estimated_sizes(&app_state_clone, cx);
+                                    cx.notify();
+                                }),
+                            )
                             .child(name.to_string())
                     })),
             )
@@ -849,16 +882,19 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
-                                app_state_clone
-                                    .transcode_settings
-                                    .update(cx, |settings, _| {
-                                        settings.ref_frames = value_clone;
-                                    });
-                                // 予測サイズを更新
-                                Self::update_estimated_sizes(&app_state_clone, cx);
-                                cx.notify();
-                            }))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone
+                                        .transcode_settings
+                                        .update(cx, |settings, _| {
+                                            settings.ref_frames = value_clone;
+                                        });
+                                    // 予測サイズを更新
+                                    Self::update_estimated_sizes(&app_state_clone, cx);
+                                    cx.notify();
+                                }),
+                            )
                             .child(name.to_string())
                     })),
             )
@@ -915,16 +951,19 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
-                                app_state_clone
-                                    .transcode_settings
-                                    .update(cx, |settings, _| {
-                                        settings.gop_size = value_clone;
-                                    });
-                                // 予測サイズを更新
-                                Self::update_estimated_sizes(&app_state_clone, cx);
-                                cx.notify();
-                            }))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone
+                                        .transcode_settings
+                                        .update(cx, |settings, _| {
+                                            settings.gop_size = value_clone;
+                                        });
+                                    // 予測サイズを更新
+                                    Self::update_estimated_sizes(&app_state_clone, cx);
+                                    cx.notify();
+                                }),
+                            )
                             .child(name.to_string())
                     })),
             )
@@ -981,16 +1020,19 @@ impl SettingsPanel {
                                 rgb(0xcdd6f4)
                             })
                             .hover(|s| if is_selected { s } else { s.bg(rgb(0x45475a)) })
-                            .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
-                                app_state_clone
-                                    .transcode_settings
-                                    .update(cx, |settings, _| {
-                                        settings.lookahead = value_clone;
-                                    });
-                                // 予測サイズを更新
-                                Self::update_estimated_sizes(&app_state_clone, cx);
-                                cx.notify();
-                            }))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |_this, _, _, cx| {
+                                    app_state_clone
+                                        .transcode_settings
+                                        .update(cx, |settings, _| {
+                                            settings.lookahead = value_clone;
+                                        });
+                                    // 予測サイズを更新
+                                    Self::update_estimated_sizes(&app_state_clone, cx);
+                                    cx.notify();
+                                }),
+                            )
                             .child(name.to_string())
                     })),
             )
@@ -1003,7 +1045,7 @@ impl SettingsPanel {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let app_state = self.app_state.clone();
-        
+
         div()
             .w_full()
             .flex()
@@ -1023,35 +1065,46 @@ impl SettingsPanel {
                     .flex()
                     .flex_col()
                     .gap(px(4.0))
-                    .child(div().text_xs().text_color(rgb(0x6c7086)).child("チューニング"))
                     .child(
                         div()
-                            .w_full()
-                            .flex()
-                            .flex_wrap()
-                            .gap(px(4.0))
-                            .children(NvencTune::all().iter().map(|value| {
-                                let is_selected = *value == settings.nvenc_tune;
-                                let value_clone = *value;
-                                let app_state_clone = app_state.clone();
+                            .text_xs()
+                            .text_color(rgb(0x6c7086))
+                            .child("チューニング"),
+                    )
+                    .child(div().w_full().flex().flex_wrap().gap(px(4.0)).children(
+                        NvencTune::all().iter().map(|value| {
+                            let is_selected = *value == settings.nvenc_tune;
+                            let value_clone = *value;
+                            let app_state_clone = app_state.clone();
 
-                                div()
-                                    .px(px(8.0))
-                                    .py(px(4.0))
-                                    .rounded(px(4.0))
-                                    .text_xs()
-                                    .cursor_pointer()
-                                    .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
-                                    .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
-                                    .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
+                            div()
+                                .px(px(8.0))
+                                .py(px(4.0))
+                                .rounded(px(4.0))
+                                .text_xs()
+                                .cursor_pointer()
+                                .bg(if is_selected {
+                                    rgb(0x89b4fa)
+                                } else {
+                                    rgb(0x313244)
+                                })
+                                .text_color(if is_selected {
+                                    rgb(0x1e1e2e)
+                                } else {
+                                    rgb(0xcdd6f4)
+                                })
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(move |_this, _, _, cx| {
                                         app_state_clone.transcode_settings.update(cx, |s, _| {
                                             s.nvenc_tune = value_clone;
                                         });
                                         cx.notify();
-                                    }))
-                                    .child(value.display_name())
-                            })),
-                    ),
+                                    }),
+                                )
+                                .child(value.display_name())
+                        }),
+                    )),
             )
             // マルチパス
             .child(
@@ -1060,35 +1113,46 @@ impl SettingsPanel {
                     .flex()
                     .flex_col()
                     .gap(px(4.0))
-                    .child(div().text_xs().text_color(rgb(0x6c7086)).child("マルチパス"))
                     .child(
                         div()
-                            .w_full()
-                            .flex()
-                            .flex_wrap()
-                            .gap(px(4.0))
-                            .children(NvencMultipass::all().iter().map(|value| {
-                                let is_selected = *value == settings.nvenc_multipass;
-                                let value_clone = *value;
-                                let app_state_clone = app_state.clone();
+                            .text_xs()
+                            .text_color(rgb(0x6c7086))
+                            .child("マルチパス"),
+                    )
+                    .child(div().w_full().flex().flex_wrap().gap(px(4.0)).children(
+                        NvencMultipass::all().iter().map(|value| {
+                            let is_selected = *value == settings.nvenc_multipass;
+                            let value_clone = *value;
+                            let app_state_clone = app_state.clone();
 
-                                div()
-                                    .px(px(8.0))
-                                    .py(px(4.0))
-                                    .rounded(px(4.0))
-                                    .text_xs()
-                                    .cursor_pointer()
-                                    .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
-                                    .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
-                                    .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
+                            div()
+                                .px(px(8.0))
+                                .py(px(4.0))
+                                .rounded(px(4.0))
+                                .text_xs()
+                                .cursor_pointer()
+                                .bg(if is_selected {
+                                    rgb(0x89b4fa)
+                                } else {
+                                    rgb(0x313244)
+                                })
+                                .text_color(if is_selected {
+                                    rgb(0x1e1e2e)
+                                } else {
+                                    rgb(0xcdd6f4)
+                                })
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(move |_this, _, _, cx| {
                                         app_state_clone.transcode_settings.update(cx, |s, _| {
                                             s.nvenc_multipass = value_clone;
                                         });
                                         cx.notify();
-                                    }))
-                                    .child(value.display_name())
-                            })),
-                    ),
+                                    }),
+                                )
+                                .child(value.display_name())
+                        }),
+                    )),
             )
     }
 
@@ -1099,9 +1163,12 @@ impl SettingsPanel {
         _cx: &mut Context<Self>,
     ) -> impl IntoElement {
         // QSV設定の実装（現在はプレースホルダー）
-        div()
-            .w_full()
-            .child(div().text_xs().text_color(rgb(0x6c7086)).child("QSV設定 (標準設定を使用)"))
+        div().w_full().child(
+            div()
+                .text_xs()
+                .text_color(rgb(0x6c7086))
+                .child("QSV設定 (標準設定を使用)"),
+        )
     }
 
     /// AMF設定をレンダリング
@@ -1111,7 +1178,7 @@ impl SettingsPanel {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let app_state = self.app_state.clone();
-        
+
         div()
             .w_full()
             .flex()
@@ -1131,34 +1198,40 @@ impl SettingsPanel {
                     .flex_col()
                     .gap(px(4.0))
                     .child(div().text_xs().text_color(rgb(0x6c7086)).child("使用法"))
-                    .child(
-                        div()
-                            .w_full()
-                            .flex()
-                            .flex_wrap()
-                            .gap(px(4.0))
-                            .children(AmfUsage::all().iter().map(|value| {
-                                let is_selected = *value == settings.amf_usage;
-                                let value_clone = *value;
-                                let app_state_clone = app_state.clone();
+                    .child(div().w_full().flex().flex_wrap().gap(px(4.0)).children(
+                        AmfUsage::all().iter().map(|value| {
+                            let is_selected = *value == settings.amf_usage;
+                            let value_clone = *value;
+                            let app_state_clone = app_state.clone();
 
-                                div()
-                                    .px(px(8.0))
-                                    .py(px(4.0))
-                                    .rounded(px(4.0))
-                                    .text_xs()
-                                    .cursor_pointer()
-                                    .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
-                                    .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
-                                    .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
+                            div()
+                                .px(px(8.0))
+                                .py(px(4.0))
+                                .rounded(px(4.0))
+                                .text_xs()
+                                .cursor_pointer()
+                                .bg(if is_selected {
+                                    rgb(0x89b4fa)
+                                } else {
+                                    rgb(0x313244)
+                                })
+                                .text_color(if is_selected {
+                                    rgb(0x1e1e2e)
+                                } else {
+                                    rgb(0xcdd6f4)
+                                })
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(move |_this, _, _, cx| {
                                         app_state_clone.transcode_settings.update(cx, |s, _| {
                                             s.amf_usage = value_clone;
                                         });
                                         cx.notify();
-                                    }))
-                                    .child(value.display_name())
-                            })),
-                    ),
+                                    }),
+                                )
+                                .child(value.display_name())
+                        }),
+                    )),
             )
     }
 
@@ -1169,7 +1242,7 @@ impl SettingsPanel {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let app_state = self.app_state.clone();
-        
+
         div()
             .w_full()
             .flex()
@@ -1188,35 +1261,46 @@ impl SettingsPanel {
                     .flex()
                     .flex_col()
                     .gap(px(4.0))
-                    .child(div().text_xs().text_color(rgb(0x6c7086)).child("チューニング"))
                     .child(
                         div()
-                            .w_full()
-                            .flex()
-                            .flex_wrap()
-                            .gap(px(4.0))
-                            .children(X264Tune::all().iter().map(|value| {
-                                let is_selected = *value == settings.x264_tune;
-                                let value_clone = *value;
-                                let app_state_clone = app_state.clone();
+                            .text_xs()
+                            .text_color(rgb(0x6c7086))
+                            .child("チューニング"),
+                    )
+                    .child(div().w_full().flex().flex_wrap().gap(px(4.0)).children(
+                        X264Tune::all().iter().map(|value| {
+                            let is_selected = *value == settings.x264_tune;
+                            let value_clone = *value;
+                            let app_state_clone = app_state.clone();
 
-                                div()
-                                    .px(px(8.0))
-                                    .py(px(4.0))
-                                    .rounded(px(4.0))
-                                    .text_xs()
-                                    .cursor_pointer()
-                                    .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
-                                    .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
-                                    .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
+                            div()
+                                .px(px(8.0))
+                                .py(px(4.0))
+                                .rounded(px(4.0))
+                                .text_xs()
+                                .cursor_pointer()
+                                .bg(if is_selected {
+                                    rgb(0x89b4fa)
+                                } else {
+                                    rgb(0x313244)
+                                })
+                                .text_color(if is_selected {
+                                    rgb(0x1e1e2e)
+                                } else {
+                                    rgb(0xcdd6f4)
+                                })
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(move |_this, _, _, cx| {
                                         app_state_clone.transcode_settings.update(cx, |s, _| {
                                             s.x264_tune = value_clone;
                                         });
                                         cx.notify();
-                                    }))
-                                    .child(value.display_name())
-                            })),
-                    ),
+                                    }),
+                                )
+                                .child(value.display_name())
+                        }),
+                    )),
             )
             .child(
                 div()
@@ -1224,35 +1308,46 @@ impl SettingsPanel {
                     .flex()
                     .flex_col()
                     .gap(px(4.0))
-                    .child(div().text_xs().text_color(rgb(0x6c7086)).child("プロファイル"))
                     .child(
                         div()
-                            .w_full()
-                            .flex()
-                            .flex_wrap()
-                            .gap(px(4.0))
-                            .children(X264Profile::all().iter().map(|value| {
-                                let is_selected = *value == settings.x264_profile;
-                                let value_clone = *value;
-                                let app_state_clone = app_state.clone();
+                            .text_xs()
+                            .text_color(rgb(0x6c7086))
+                            .child("プロファイル"),
+                    )
+                    .child(div().w_full().flex().flex_wrap().gap(px(4.0)).children(
+                        X264Profile::all().iter().map(|value| {
+                            let is_selected = *value == settings.x264_profile;
+                            let value_clone = *value;
+                            let app_state_clone = app_state.clone();
 
-                                div()
-                                    .px(px(8.0))
-                                    .py(px(4.0))
-                                    .rounded(px(4.0))
-                                    .text_xs()
-                                    .cursor_pointer()
-                                    .bg(if is_selected { rgb(0x89b4fa) } else { rgb(0x313244) })
-                                    .text_color(if is_selected { rgb(0x1e1e2e) } else { rgb(0xcdd6f4) })
-                                    .on_mouse_down(MouseButton::Left, cx.listener(move |_this, _, _, cx| {
+                            div()
+                                .px(px(8.0))
+                                .py(px(4.0))
+                                .rounded(px(4.0))
+                                .text_xs()
+                                .cursor_pointer()
+                                .bg(if is_selected {
+                                    rgb(0x89b4fa)
+                                } else {
+                                    rgb(0x313244)
+                                })
+                                .text_color(if is_selected {
+                                    rgb(0x1e1e2e)
+                                } else {
+                                    rgb(0xcdd6f4)
+                                })
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(move |_this, _, _, cx| {
                                         app_state_clone.transcode_settings.update(cx, |s, _| {
                                             s.x264_profile = value_clone;
                                         });
                                         cx.notify();
-                                    }))
-                                    .child(value.display_name())
-                            })),
-                    ),
+                                    }),
+                                )
+                                .child(value.display_name())
+                        }),
+                    )),
             )
     }
 
@@ -1262,9 +1357,12 @@ impl SettingsPanel {
         _settings: &TranscodeSettings,
         _cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        div()
-            .w_full()
-            .child(div().text_xs().text_color(rgb(0x6c7086)).child("VP9設定 (標準設定を使用)"))
+        div().w_full().child(
+            div()
+                .text_xs()
+                .text_color(rgb(0x6c7086))
+                .child("VP9設定 (標準設定を使用)"),
+        )
     }
 
     /// AV1設定をレンダリング
@@ -1273,9 +1371,12 @@ impl SettingsPanel {
         _settings: &TranscodeSettings,
         _cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        div()
-            .w_full()
-            .child(div().text_xs().text_color(rgb(0x6c7086)).child("AV1設定 (標準設定を使用)"))
+        div().w_full().child(
+            div()
+                .text_xs()
+                .text_color(rgb(0x6c7086))
+                .child("AV1設定 (標準設定を使用)"),
+        )
     }
 }
 
