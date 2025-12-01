@@ -140,14 +140,14 @@ jobs:
 
             # アーティファクトのアップロード
             - name: Upload portable ZIP
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v5
               with:
                   name: windows-portable
                   path: ${{ env.APP_NAME }}-*-portable.zip
                   if-no-files-found: error
 
             - name: Upload installer
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v5
               with:
                   name: windows-installer
                   path: ${{ env.APP_NAME }}-*-setup.exe
