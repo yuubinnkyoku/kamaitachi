@@ -222,8 +222,8 @@ impl MainWindow {
                 .ok();
                 this.update(cx, |_, cx| cx.notify()).ok();
 
-                // FFmpegコマンドを構築
-                let args = job.build_ffmpeg_args();
+                // FFmpegコマンドを構築（FFmpegパスを渡してエンコーダー利用可能性をチェック）
+                let args = job.build_ffmpeg_args_with_path(Some(&ffmpeg_path));
                 info!("Running FFmpeg: {:?} {:?}", ffmpeg_path, args);
 
                 // 進捗更新用のクロージャ

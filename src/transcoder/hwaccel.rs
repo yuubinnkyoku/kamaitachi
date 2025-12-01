@@ -3,7 +3,14 @@
 use anyhow::Result;
 use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::process::Command;
+use std::sync::OnceLock;
+
+use super::VideoCodec;
+
+/// 利用可能なエンコーダーのキャッシュ
+static AVAILABLE_ENCODERS: OnceLock<HashSet<String>> = OnceLock::new();
 
 /// HWアクセラレーションタイプ
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -146,9 +153,7 @@ impl HwAccelDetector {
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|| "ffmpeg".to_string());
 
-        let output = Command::new(&ffmpeg)
-            .args(["-encoders"])
-            .output();
+        let output = Command::new(&ffmpeg).args(["-encoders"]).output();
 
         if let Ok(output) = output {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -159,7 +164,10 @@ impl HwAccelDetector {
     }
 
     /// 自動選択されたHWアクセラレーションを解決
-    pub fn resolve_auto(hwaccel: HwAccelType, ffmpeg_path: Option<&std::path::PathBuf>) -> HwAccelType {
+    pub fn resolve_auto(
+        hwaccel: HwAccelType,
+        ffmpeg_path: Option<&std::path::PathBuf>,
+    ) -> HwAccelType {
         if hwaccel != HwAccelType::Auto {
             return hwaccel;
         }
@@ -168,6 +176,170 @@ impl HwAccelDetector {
             Ok(info) => info.recommended,
             Err(_) => HwAccelType::Software,
         }
+    }
+
+    /// 利用可能なすべてのエンコーダーをキャッシュから取得
+    /// 初回呼び出し時にFFmpegから取得してキャッシュ
+    pub fn get_available_encoders(
+        ffmpeg_path: Option<&std::path::PathBuf>,
+    ) -> &'static HashSet<String> {
+        AVAILABLE_ENCODERS.get_or_init(|| Self::fetch_available_encoders(ffmpeg_path))
+    }
+
+    /// FFmpegから利用可能なエンコーダー一覧を取得
+    fn fetch_available_encoders(ffmpeg_path: Option<&std::path::PathBuf>) -> HashSet<String> {
+        let ffmpeg = ffmpeg_path
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| "ffmpeg".to_string());
+
+        let output = Command::new(&ffmpeg).args(["-encoders"]).output();
+
+        let mut encoders = HashSet::new();
+        if let Ok(output) = output {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines() {
+                // エンコーダー行のパース: " V..... h264_nvenc           NVIDIA NVENC H.264 encoder"
+                let trimmed = line.trim();
+                if trimmed.len() > 7 && (trimmed.starts_with("V") || trimmed.starts_with(" V")) {
+                    let parts: Vec<&str> = trimmed.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        encoders.insert(parts[1].to_string());
+                    }
+                }
+            }
+        }
+
+        info!("Available encoders detected: {:?}", encoders);
+        encoders
+    }
+
+    /// 特定のエンコーダーが実際に動作するかをテスト
+    /// (エンコーダーがリストにあってもGPUがサポートしていない場合がある)
+    pub fn test_encoder_availability(
+        encoder: &str,
+        ffmpeg_path: Option<&std::path::PathBuf>,
+    ) -> bool {
+        // まずエンコーダーがFFmpegに含まれているかチェック
+        let available_encoders = Self::get_available_encoders(ffmpeg_path);
+        if !available_encoders.contains(encoder) {
+            debug!("Encoder {} not found in FFmpeg encoder list", encoder);
+            return false;
+        }
+
+        // 既知のソフトウェアエンコーダーはFFmpegに含まれていれば動作する
+        let known_software_encoders = [
+            "libx264",
+            "libx265",
+            "libvpx-vp9",
+            "libsvtav1",
+            "libaom-av1",
+        ];
+        if known_software_encoders.contains(&encoder) {
+            return true;
+        }
+
+        // HWエンコーダーは実際にテストが必要
+        let ffmpeg = ffmpeg_path
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| "ffmpeg".to_string());
+
+        // ダミーの入力でエンコーダーの初期化をテスト
+        let result = Command::new(&ffmpeg)
+            .args([
+                "-f",
+                "lavfi",
+                "-i",
+                "nullsrc=s=256x256:d=0.1",
+                "-c:v",
+                encoder,
+                "-frames:v",
+                "1",
+                "-f",
+                "null",
+                "-",
+            ])
+            .output();
+
+        match result {
+            Ok(output) => {
+                let success = output.status.success();
+                if !success {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    // GPU非対応エラーを検出
+                    if stderr.contains("not supported")
+                        || stderr.contains("doesn't support")
+                        || stderr.contains("Codec not supported")
+                        || stderr.contains("Error while opening encoder")
+                    {
+                        warn!(
+                            "Encoder {} is not supported by this GPU: {}",
+                            encoder,
+                            stderr
+                                .lines()
+                                .find(|l| l.contains("not supported") || l.contains("Error"))
+                                .unwrap_or("")
+                        );
+                        return false;
+                    }
+                }
+                success
+            }
+            Err(e) => {
+                warn!("Failed to test encoder {}: {}", encoder, e);
+                false
+            }
+        }
+    }
+
+    /// ビデオコーデックに対するフォールバックエンコーダー候補を取得
+    /// 優先度順にリストを返す
+    fn get_fallback_encoders(video_codec: &VideoCodec) -> Vec<&'static str> {
+        match video_codec {
+            VideoCodec::H264 => vec!["libx264"],
+            VideoCodec::H265 => vec!["libx265"],
+            VideoCodec::Vp9 => vec!["libvpx-vp9"],
+            // AV1は複数のソフトウェアエンコーダーがある
+            // libsvtav1: 高速、品質良好（推奨）
+            // libaom-av1: 遅いが高品質、互換性高い
+            VideoCodec::Av1 => vec!["libsvtav1", "libaom-av1"],
+        }
+    }
+
+    /// 指定されたビデオコーデックとHWアクセラレーションの組み合わせが利用可能かチェック
+    /// 利用不可の場合は代替エンコーダーを返す
+    pub fn get_available_encoder(
+        video_codec: &VideoCodec,
+        hwaccel: &HwAccelType,
+        ffmpeg_path: Option<&std::path::PathBuf>,
+    ) -> (String, HwAccelType) {
+        let preferred_encoder = video_codec.encoder_name(hwaccel);
+
+        // 優先エンコーダーが利用可能かテスト
+        if Self::test_encoder_availability(preferred_encoder, ffmpeg_path) {
+            info!("Using preferred encoder: {}", preferred_encoder);
+            return (preferred_encoder.to_string(), *hwaccel);
+        }
+
+        // フォールバック: ソフトウェアエンコーダーを順番に試す
+        let fallback_encoders = Self::get_fallback_encoders(video_codec);
+
+        for fallback in &fallback_encoders {
+            if Self::test_encoder_availability(fallback, ffmpeg_path) {
+                warn!(
+                    "Encoder {} not available, falling back to {}",
+                    preferred_encoder, fallback
+                );
+                return (fallback.to_string(), HwAccelType::Software);
+            }
+        }
+
+        // すべてのフォールバックが失敗した場合、最初のフォールバックを返す（エラーになる可能性あり）
+        let last_resort = fallback_encoders.first().unwrap_or(&"libx264");
+        warn!(
+            "No available encoder found for {:?}, using {} (may fail)",
+            video_codec, last_resort
+        );
+        (last_resort.to_string(), HwAccelType::Software)
     }
 }
 
